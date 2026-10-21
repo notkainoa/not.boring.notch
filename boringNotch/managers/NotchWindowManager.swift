@@ -35,6 +35,7 @@ final class NotchWindowManager {
     init(camera: CameraModel) {
         // Migrate saved heights before the initial view model reads notch sizing.
         LegacyNonNotchHeightMigration.applyIfNeeded()
+        RemovedPreferencesCleanup.apply()
         primaryViewModel = BoringViewModel(camera: camera)
     }
 

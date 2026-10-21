@@ -110,6 +110,20 @@ enum LegacyNonNotchHeightMigration {
     }
 }
 
+/// Removes preferences for features that no longer exist: the full tabbed
+/// layout (`compactMode` switched it off) and its tab bar. Nothing reads
+/// them any more. This only keeps them from lingering in the user's
+/// defaults, so it's safe to run on every launch.
+enum RemovedPreferencesCleanup {
+    static let keys = ["compactMode", "alwaysShowTabs", "openLastTabByDefault"]
+
+    static func apply(to defaults: UserDefaults = .standard) {
+        for key in keys where defaults.object(forKey: key) != nil {
+            defaults.removeObject(forKey: key)
+        }
+    }
+}
+
 @MainActor func syncNotchHeightIfNeeded() {
     var didChangeHeight = false
 
