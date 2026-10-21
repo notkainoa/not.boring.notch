@@ -296,7 +296,9 @@ struct AudioOutputPicker: View {
     }
 }
 
-private struct AudioOutputRowButtonStyle: ButtonStyle {
+/// Also used by the Raycast panel rows, so every list in the notch shares one
+/// hover treatment.
+struct AudioOutputRowButtonStyle: ButtonStyle {
     let cornerRadius: CGFloat
     let hoverFill: CGFloat
     let pressedFill: CGFloat
