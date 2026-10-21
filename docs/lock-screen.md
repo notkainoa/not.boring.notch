@@ -79,3 +79,62 @@ It also re-adds the window to the notch space after undelegating (`CGSSpace.reas
 | Treating the track title and album art as always private | **No** | Replaced by the user-configurable policy. Music is visible by default. |
 | The 2.4 s swap delay tied to the animation | **No** | Without the morph we swap right after SkyLight is disabled. |
 | Wake safety net | **Partly** | We re-check the real lock state (`CGSessionCopyCurrentDictionary`) on wake instead of assuming. |
+
+## Our implementation (first pass)
+
+### Lock state
+
+`BoringViewCoordinator.isScreenLocked` (published, main actor) is the one place that knows the screen is locked. Only `NotchWindowManager` sets it (`setScreenLocked`), from the lock/unlock notifications. It also seeds it at launch and re-checks it on wake and when the user session becomes active again, using `CGSessionCopyCurrentDictionary` (`private/SessionLockState.swift`, undocumented key). Views read it through the coordinator they already observe.
+
+### Lock-screen policy
+
+`models/LockScreenPolicy.swift`:
+
+- `LockScreenFeature`: `music`, `battery`, `notifications`, `calendar`, `shelf`, `mirror`.
+- `LockScreenVisibility`: `visible` or `hidden`. A `redacted` case for calendar titles and shelf names can be added later without changing storage.
+- One `Defaults` key per feature in `Constants.swift` (`lockScreenMusicVisibility` and so on). Defaults: music and battery visible; notifications, calendar, shelf and mirror hidden.
+- `LockScreenFeature.visibilityKey` maps each feature to its key, so a settings row is `@Default(feature.visibilityKey)` or a `Picker` over `LockScreenVisibility.allCases`.
+- `BoringViewCoordinator.isVisible(_ feature:)` answers "may this feature show right now": always true when unlocked, the policy value when locked.
+
+### What locked means in this pass
+
+- The notch can't open while locked (`BoringViewModel.open()` refuses, which covers hover, tap, gestures, the shortcut and drags), any open notch is closed on lock, the notch windows ignore the mouse and drag detectors are torn down. The open views (home with calendar and mirror, shelf, notification reply) are therefore never reachable while locked, whatever the policy says. When expandable panels exist, the policy decides which panels may open while locked.
+- Closed-state activities follow the policy: the music live activity and music sneak peeks (`music`), the battery/charging notice (`battery`) and notification live activities (`notifications`). OSDs and the idle face are not private and always show.
+- Nothing changes when `showOnLockScreen` is off: the windows are still destroyed on lock.
+- Policy checks happen where things are presented: `BoringViewCoordinator.toggleSneakPeek` and `toggleExpandingView` drop hidden alerts, `setScreenLocked(true)` clears hidden ones already on screen, and `ContentView.liveActivities` filters the music and notification activities. All of them short-circuit when unlocked, so there's no cost at rest.
+
+### Hook points
+
+For whoever reworks these files (the compact-only `ContentView` rewrite in particular):
+
+- `ContentView.liveActivities`: `coordinator.isVisible(.notifications)` and `coordinator.isVisible(.music)`.
+- `ContentView` body, open content: `vm.notchState == .open && !coordinator.isScreenLocked`. A notch held open by a share picker on lock must not draw private content.
+- `BoringViewModel.open()`: refuses while locked.
+- `BoringViewCoordinator`: `isScreenLocked`, `setScreenLocked`, `isVisible(_:)`, and the guards at the top of `toggleSneakPeek` and `toggleExpandingView`.
+- `NotchWindowManager`: `screenLocked`, `screenUnlocked`, `resyncLockState`, `leaveLockScreen`, `replaceSkyLightDelegatedWindows`, and `makeNotchWindow` (applies SkyLight and `ignoresMouseEvents` for the current lock state).
+- `AppDelegate`: lock/unlock observers plus wake and session-active observers that call `resyncLockState`.
+
+### Click-swallow fix
+
+`NotchWindowManager.leaveLockScreen` disables SkyLight 150 ms after unlock (as before; `disableSkyLight` now also re-adds the window to the notch space), waits another 150 ms, then replaces every window that was ever delegated to SkyLight (`BoringNotchSkyLightWindow.wasDelegatedToSkyLight`) with a fresh window, moving the same hosting view across behind a snapshot. The pending unlock work is cancelled if the screen locks again first. Windows created while locked (for example after a display change) are delegated too, so they get replaced the same way.
+
+This is unverified on a real lock screen. The bug's existence in our code is established by reading the code, not by reproducing it.
+
+## Manual test checklist
+
+Do these on the M1 MacBook Air (no notch), then repeat the starred items on a notched Mac or with an external display in "all displays" mode. Settings → Notch → "Show notch on lock screen" must be on unless a step says otherwise.
+
+1. **Baseline click-through (before locking).** Note something clickable right under the notch area, e.g. a Safari tab or toolbar button 20–60 px below the menu bar and up to ~300 px either side of the centre. Click it a few times to confirm it works.
+2. **Lock while idle.** Lock with ⌃⌘Q. The notch should appear over the lock screen. Hovering it must not open it; right-clicking must not show the menu.
+3. **Music while locked.** Start music, then lock. The closed music activity should show. Skip a track with the media keys: the song-change peek should show.
+4. **Notifications while locked.** Trigger a notification while locked (e.g. send yourself an iMessage from another device). No notification activity should appear in the notch.
+5. **Battery while locked.** Plug in or unplug the charger while locked. The charging notice should show.
+6. **Lock while open.*** Open the notch (hover), keep the pointer there and press ⌃⌘Q. The notch should be closed on the lock screen.
+7. **Unlock, then click-through.*** Unlock and, within a second or two, click the same targets from step 1 repeatedly, including directly under either side of the notch. Every click must land. This is the click-swallow check. Before this branch, these clicks were expected to be swallowed.
+8. **Unlock continuity.*** With music playing, unlock and watch the notch: there should be no blank frame or visible flash when the window is swapped (a 1–2 px seam at the top edge for one frame is the known #1346 tradeoff).
+9. **Notch still works after unlock.*** Hover to open, use the music controls, open the shelf by dragging a file onto the notch, open Settings from the right-click menu, and type in any notch text field (e.g. a notification reply). All must behave as before.
+10. **Rapid lock/unlock.** Lock and unlock three times in quick succession (unlock within ~1 s). The notch must end up visible and working (step 9), and step 7 must still pass.
+11. **Display change while locked.*** Plug or unplug an external display while locked, then unlock. Repeat steps 7 and 9.
+12. **Setting off.** Turn "Show notch on lock screen" off and lock. No notch over the lock screen. Unlock: the notch comes back and steps 7 and 9 pass.
+13. **Sleep without lock.** With "Require password" set to a delay (or off), close the lid briefly and reopen without a password prompt. The notch must open on hover normally.
+14. **Policy override (no UI yet).** Quit the app, run `defaults write theboringteam.boringnotch lockScreenMusicVisibility -string hidden`, relaunch, and repeat step 3: no music activity or song-change peek while locked, and music shows again after unlock. Undo with `defaults delete theboringteam.boringnotch lockScreenMusicVisibility`. The same works for `lockScreenBatteryVisibility` and `lockScreenNotificationsVisibility` (`visible`/`hidden`).

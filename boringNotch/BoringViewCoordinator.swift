@@ -49,6 +49,34 @@ final class BoringViewCoordinator: ObservableObject {
     @Published var helloAnimationRunning: Bool = false
     private var osdEnableTask: Task<Void, Never>?
 
+    // MARK: - Lock screen
+
+    /// The one place that knows the screen is locked. Set by
+    /// NotchWindowManager from the lock/unlock notifications.
+    @Published private(set) var isScreenLocked: Bool = false
+
+    /// Whether a feature may show right now: always when unlocked, per the
+    /// user's lock-screen policy when locked.
+    func isVisible(_ feature: LockScreenFeature) -> Bool {
+        !isScreenLocked || feature.visibility == .visible
+    }
+
+    func setScreenLocked(_ locked: Bool) {
+        guard locked != isScreenLocked else { return }
+        isScreenLocked = locked
+        guard locked else { return }
+
+        // Drop anything already on screen that the policy hides.
+        if expandingView.show, let feature = LockScreenFeature(expandingView.type), !isVisible(feature) {
+            expandingView.show = false
+        }
+        if !isVisible(.music) {
+            for (uuid, state) in sneakPeekStates where state.show && state.type == .music {
+                sneakPeekStates[uuid]?.show = false
+            }
+        }
+    }
+
     @AppStorage("firstLaunch") var firstLaunch: Bool = true
     @AppStorage("musicLiveActivityEnabled") var musicLiveActivityEnabled: Bool = true
     @AppStorage("currentMicStatus") var currentMicStatus: Bool = true
@@ -240,6 +268,10 @@ final class BoringViewCoordinator: ObservableObject {
         }
 
         Task { @MainActor in
+            // Checked here, not before the Task, so a peek queued just before
+            // the screen locks is still filtered.
+            if status, let feature = LockScreenFeature(type), !self.isVisible(feature) { return }
+
             // Helper to update state for a specific UUID
             @MainActor
             func updateState(for uuid: String) {
@@ -387,6 +419,7 @@ final class BoringViewCoordinator: ObservableObject {
         browser: BrowserType = .chromium
     ) {
         Task { @MainActor in
+            if status, let feature = LockScreenFeature(type), !self.isVisible(feature) { return }
             withAnimation(.smooth) {
                 self.expandingView.show = status
                 self.expandingView.type = type

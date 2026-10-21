@@ -28,7 +28,7 @@ final class NotchWindowManager {
     let primaryViewModel: BoringViewModel
     private var primaryDragDetector: DragDetector?
 
-    private(set) var isScreenLocked: Bool = false
+    var isScreenLocked: Bool { BoringViewCoordinator.shared.isScreenLocked }
     /// Post-unlock SkyLight teardown; cancelled if the screen locks again first.
     private var unlockTask: Task<Void, Never>?
     private var windowScreenDidChangeObserver: Any?
@@ -57,21 +57,41 @@ final class NotchWindowManager {
     func screenLocked() {
         unlockTask?.cancel()
         unlockTask = nil
-        isScreenLocked = true
+        BoringViewCoordinator.shared.setScreenLocked(true)
+
+        // Nothing opens over the lock screen (BoringViewModel.open refuses),
+        // so close what's open and stop all pointer and drag input.
+        ([primaryViewModel] + contexts.values.map(\.viewModel)).forEach { $0.close() }
+        cleanupDragDetectors()
+
         if !Defaults[.showOnLockScreen] {
             cleanupWindows()
         } else {
+            notchWindows.forEach { $0.ignoresMouseEvents = true }
             enableSkyLightOnAllWindows()
         }
     }
 
     func screenUnlocked() {
-        isScreenLocked = false
+        BoringViewCoordinator.shared.setScreenLocked(false)
         if !Defaults[.showOnLockScreen] {
             adjustWindowPosition(changeAlpha: true)
-            setupDragDetectors()
         } else {
+            notchWindows.forEach { $0.ignoresMouseEvents = false }
             leaveLockScreen()
+        }
+        setupDragDetectors()
+    }
+
+    /// Re-checks the real lock state, for launch and wake: the lock
+    /// notifications only report changes, and a missed one would leave the
+    /// notch stuck locked or on the lock screen.
+    func resyncLockState() {
+        guard let locked = SessionLockState.isScreenLocked, locked != isScreenLocked else { return }
+        if locked {
+            screenLocked()
+        } else {
+            screenUnlocked()
         }
     }
 
@@ -228,6 +248,7 @@ final class NotchWindowManager {
         } else {
             window.disableSkyLight()
         }
+        window.ignoresMouseEvents = isScreenLocked
         return window
     }
 
@@ -488,6 +509,7 @@ final class NotchWindowManager {
 
         setupDragDetectors()
         noteInitialScreens()
+        resyncLockState()
     }
 
     func togglePopover(_ sender: Any?) {
