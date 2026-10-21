@@ -8,7 +8,7 @@ This is about using **Raycast and the extensions the user already has installed*
 
 ## TL;DR
 
-- **Inbound (us → Raycast) is easy but one-way.** The deeplink `raycast://extensions/<owner>/<ext>/<command>?launchType=background&arguments=…&context=…&fallbackText=…` can launch any installed command. Raycast asks the user to confirm the first time, and there is **no result or callback channel**.
+- **Inbound (us → Raycast) is easy but one-way.** The deeplink `raycast://extensions/<owner>/<ext>/<command>?launchType=background&arguments=…&context=…&fallbackText=…` can launch any installed command. Raycast asks the user to confirm once per command. After "Always Open Command" it launches silently, and that choice survives a Raycast restart (tested by the user on 2026-10-21). There is **no result or callback channel**.
 - **Outbound (Raycast → us) only happens if Raycast-side code chooses to call us.** Extensions are unsandboxed Node, so they can reach a unix socket, localhost HTTP, a URL scheme or a CLI. The user's existing third-party extensions know nothing about us, so **we cannot capture their output** (lists, toasts, HUDs, menu-bar items). Content has to come from code we control: a small companion Raycast extension, or Script Commands calling a CLI we ship.
 - **Discovery is possible but undocumented.** Every installed store extension's full `package.json` sits unencrypted in `~/.config/raycast/extensions/<uuid>/`, with commands, titles, modes, arguments, AI tools and icons. Enabled state, aliases, hotkeys and settings live in Raycast's encrypted databases, which we should not touch.
 - **Recommendation:**
@@ -36,14 +36,18 @@ This is about using **Raycast and the extensions the user already has installed*
 
 - **The confirmation prompt is verified.** Quoted: "Whenever a command is launched using a Deeplink, Raycast will ask you to confirm that you want to run the command." The Raycast 2.8 binary has a `FrontendGeneralConfirmExternalCommandLaunchInput` message, which is consistent with this.
   - Secondary sources say the prompt offers "Always Open Command", which suppresses it afterwards per command. Those sources are the manual's deeplinks page, which we could only read through a search summary because it renders client-side, and a 2023 MacStories article (https://www.macstories.net/stories/raycast-adds-deeplinking-of-commands/).
-  - **Unconfirmed:** whether `launchType=background` also skips the prompt, and whether "always" persists across Raycast updates. Prototype step 1 tests this.
+  - **Tested by the user on Raycast 2.8.0, 2026-10-21** (see [Test results](#test-results-2026-10-21)):
+    - The prompt appears the first time *each command* is launched by deeplink, even with `launchType=background`. Background mode does not bypass it.
+    - "Always Open Command" exists. Once chosen, later launches run with no prompt and no Raycast window, whether `launchType` is `background` or `userInitiated`, so approval is per command, not per launch type.
+    - The approval persisted after quitting and relaunching Raycast. Persistence across Raycast *updates* is untested.
+    - `arguments` prefill works for a `view` command.
 - **The URL shape for script commands is verified.** It is `raycast://script-commands/<slug>?arguments=a&arguments=b`, with repeated positional `arguments` params. This is the code `@raycast/utils` `createDeeplink` emits (`DeeplinkType.ScriptCommand`; https://developers.raycast.com/utilities/functions/createdeeplink).
 - **Search-summary only, unconfirmed:** `raycast://ai-commands/<slug>` and `raycast://confetti`.
 - **The registered schemes are verified** from `Raycast.app/Contents/Info.plist`: `raycast`, `raycast-x`, `com.raycast`, `com.raycast-x`.
 
 **What can run without the Raycast window.**
 - Commands have three modes: `view`, `no-view` and `menu-bar` (https://developers.raycast.com/information/manifest).
-- A `no-view` command launched with `launchType=background` is the only way to run "headless". The docs imply it does not show the window. This is inferred and must be tested.
+- A `no-view` command launched with `launchType=background` is the only way to run "headless". Tested: an approved `no-view` command ran with no Raycast window, under both launch types.
 - `view` commands always need the Raycast window. That is fine when the user explicitly picks them from the notch: Raycast opens normally.
 - A `menu-bar` command launched in the background just refreshes its menu bar item.
 
@@ -283,13 +287,13 @@ The same app-side socket and `notchctl` as B, but no companion extension. We shi
 3. **Raycast launcher panel (A).**
    - Read the manifests, either sent by the companion extension or read directly with a read-only home-relative exception.
    - Let the user pin commands, and fire deeplinks.
-   - Explain the one-time "Always Open Command" prompt in onboarding.
+   - Explain the one-time "Always Open Command" prompt in onboarding. Each newly pinned command will prompt once. A good place for it is right after pinning, with a "Try it" button so the prompt appears while the user expects it.
 
-Why this order: the push API is what makes the notch a *display* for Raycast, and it is fully supported. Launching is useful but one-way, and it needs real-device testing of the prompt behavior before we commit UX to it.
+Why this order: the push API is what makes the notch a *display* for Raycast, and it is fully supported. Launching is useful but one-way. The prompt behavior is now tested and acceptable: one approval per command, then silent.
 
 ## Risks and unknowns
 
-1. **Deeplink confirmation (high).** We don't know whether `launchType=background` bypasses the prompt, whether "Always Open Command" persists per command and across Raycast updates, or whether the prompt raises the Raycast window. All three directly affect the launcher UX. *Test.*
+1. **Deeplink confirmation (now low).** Tested: the prompt appears once per command, background mode doesn't bypass it, and "Always Open Command" makes later launches silent and survives a Raycast restart. Still open: whether the approval survives Raycast updates, and whether the prompt itself brings the Raycast window forward. The user didn't report a window, but we didn't check for it specifically.
 2. **Background launches stealing focus (medium).** `launchType=background` *should* keep Raycast in the background. We also need to check that `NSWorkspace.open` from our LSUIElement app doesn't activate anything, and that our URL scheme handler doesn't activate our app when an extension calls `open("notboringnotch://…")`. A socket avoids this entirely, which is one reason to prefer it over the URL scheme.
 3. **Undocumented install layout (medium).** `~/.config/raycast/extensions/<uuid>/package.json` could move. Mitigation: prefer the companion extension's report, and treat direct reads as a fallback.
 4. **No enabled-state or built-ins (low to medium).** The launcher may list disabled commands. Deeplinking a disabled command errors inside Raycast, and we don't know how that looks. Built-in commands must be added manually by deeplink, using Raycast's "Copy Deeplink" action.
@@ -301,7 +305,7 @@ Why this order: the push API is what makes the notch a *display* for Raycast, an
    - If we ever add HTTP, bind to `127.0.0.1` with a token, like masscode.
 7. **Store review (low to medium).** "Requires companion app" extensions exist, but review could still push back. The fallback is distributing from source.
 8. **Raycast 2.x churn (medium).** Raycast 2.8 is cross-platform (manifests list `Windows`) and has a new backend. Deeplinks and the manifest format are public and stable so far. Everything else is not.
-9. **Unconfirmed bits:** the `raycast://ai-commands/…` and `raycast://confetti` URL forms, and whether a background `no-view` deeplink launch ever shows UI.
+9. **Unconfirmed bits:** the `raycast://ai-commands/…` and `raycast://confetti` URL forms, and the focus behavior of launches from our own app rather than from Terminal's `open -g`.
 
 ## Proposed prototype (1–2 days, throwaway branch)
 
@@ -345,3 +349,24 @@ Please write down these four answers, because they decide the launcher UX:
 - Does "always" persist?
 - Does anything steal focus?
 - Does the `arguments` prefill work?
+
+### Test results (2026-10-21)
+
+The user ran these on Raycast 2.8.0.
+
+| Step | Result |
+|---|---|
+| 1. First background launch (`pick-color`) | A prompt appeared. After "Always Open Command" the picker opened. |
+| 2. Repeat | No prompt and the picker opened. No Raycast window. |
+| 3. `launchType=userInitiated` | Straight to the picker, same as step 2. No window flash and no prompt, so approval is per command, not per launch type. |
+| 4. `view` command with `arguments` | A prompt (new command), then it opened with the argument prefilled. |
+| 5. After restarting Raycast | Still no prompt. The approval persists. |
+| 6. Background launch of a new `menu-bar` command | A prompt the first time, even with `launchType=background`. After that nothing visible, which is expected because it only refreshes its menu-bar item. |
+
+The four answers:
+- Background launches do prompt the first time for each command.
+- "Always" persists across a restart.
+- Nothing visibly stole focus after approval.
+- Argument prefill works.
+
+This supports the launcher panel (architecture A, layer 3 of the recommendation) as designed.
