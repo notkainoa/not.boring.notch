@@ -291,6 +291,55 @@ The same app-side socket and `notchctl` as B, but no companion extension. We shi
 
 Why this order: the push API is what makes the notch a *display* for Raycast, and it is fully supported. Launching is useful but one-way. The prompt behavior is now tested and acceptable: one approval per command, then silent.
 
+## Product design (agreed 2026-10-21)
+
+**Where Raycast lives in the UI.**
+- Not a separate page: that is the tab UI item 1 deletes.
+- Not a freeform customizable home: that fights compact-only and multi-display sizing.
+- The home view stays as it is, with now playing (`CompactHomeView`) on top. A bar of buttons sits below it, and the bar is what users customize.
+
+```
+┌──────────────────────────────────────────────┐
+│  [art]  Song title — Artist      ◀◀  ▶  ▶▶   │  ← CompactHomeView, unchanged
+│  ──────────────────────────────────────────  │
+│  📅  🪞  🗂   │   🎨  🔍  📋  ⏱   │   ⋯        │  ← the bar
+└──────────────────────────────────────────────┘
+   built-in      pinned Raycast     Raycast
+   panels        commands           panel
+```
+
+**Behavior.**
+- Built-in buttons expand into their item 2 panel.
+- Pinned Raycast commands show the extension's own icon from `assets/`. A click depends on the command's mode:
+
+  | Command | What a click does |
+  |---|---|
+  | `no-view` | Deeplink with `launchType=background`, then a brief "sent" state. Raycast reports nothing back, so we never claim success. |
+  | Has `arguments` | Expands the notch into a small form generated from the manifest, then sends the deeplink. |
+  | `view` | Collapses the notch and opens Raycast. |
+  | `menu-bar` | Not pinnable. Launching it only refreshes Raycast's own menu-bar item. |
+
+- "⋯" expands a Raycast panel. It holds the pins that don't fit and, later, panels pushed by the companion extension.
+- Pushed alerts and progress are not part of the home view. They go through the live-activity and alert system, so they show while the notch is closed.
+- The closed notch shows no pins for now. We can revisit a hover strip once the bar exists.
+
+**Reuse what's already there.** The app already has the right pieces, so match their style and don't build parallel ones:
+
+| Need | Existing piece to use |
+|---|---|
+| Bar buttons | `HoverButton` (`components/HoverButton.swift`): the same hover capsule, sizes and symbol transitions the music controls use via `MusicControlSlotButton`. For extension PNG icons, add an image variant of `HoverButton`, not a new button style. |
+| Bar item model and Settings | Copy the `MusicControlButton` pattern: a `Codable`, `Defaults.Serializable` enum or struct stored under one `Defaults` key in `Constants.swift`, like `musicControlSlots`. The Settings pin list should look and behave like `MusicSlotConfigurationView`. The Raycast settings page follows the existing `Form`/`Section` style of `components/Settings/Views/*` (for example `ShortcutsSettingsView`), using `HelpText` and the badges from `SettingsHelpers.swift`. |
+| Panels ("⋯", argument form) | The item 2 expandable-panel mechanism (per-panel preferred size and an animated morph of `NotchShape`). Don't add a new window. |
+| Pushed alerts and activities | Add cases to `LiveActivityItem` in `LiveActivityStack.swift`, modeled on `.notification` and `NotificationLiveActivity`. Transient alerts auto-expire and hand back to music, exactly as notifications do now. Short, one-off feedback can follow the `PowerStatusNotice` and battery-interrupt pattern. |
+| Text that doesn't fit | `MarqueeText` (`components/LiveActivities/MarqueeTextView.swift`). |
+| New strings | `Localizable.xcstrings`. |
+
+**Build order.**
+1. During items 1 and 2: build the bar as a generic component with an item type, shipping only the built-in panel buttons.
+2. Raycast pins: a manifest reader, Settings → Raycast, deeplink launch from the bar, and the argument form.
+3. The local socket and `notchctl`, feeding new `LiveActivityItem` cases.
+4. The companion Raycast extension, pushing panels into "⋯".
+
 ## Risks and unknowns
 
 1. **Deeplink confirmation (now low).** Tested: the prompt appears once per command, background mode doesn't bypass it, and "Always Open Command" makes later launches silent and survives a Raycast restart. Still open: whether the approval survives Raycast updates, and whether the prompt itself brings the Raycast window forward. The user didn't report a window, but we didn't check for it specifically.
