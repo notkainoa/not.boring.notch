@@ -3,10 +3,10 @@ name: Build for macOS
 on:
   push:
     branches:
-      - '*'
+      - main
   pull_request:
     branches:
-      - '*'
+      - main
 
 # https://stackoverflow.com/a/72408109/6942800
 concurrency:
@@ -19,18 +19,8 @@ permissions:
 
 jobs:
   build:
-    name: Build Boring Notch (${{ matrix.xcode }} on ${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-15
-            xcode: "~26.0"
-          - os: macos-26
-            xcode: "^26"
-          - os: xcode-27
-            xcode: "^27"
+    name: Build and test (macOS 26)
+    runs-on: macos-26
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -38,7 +28,7 @@ jobs:
       - name: Build
         uses: mxcl/xcodebuild@d3ee9b419c1be9a988086c58fe0988f32d99cfc5 # v3.6.0
         with:
-          xcode: ${{ matrix.xcode }}
+          xcode: "^26"
           platform: macOS
           scheme: boringNotch
           action: build
@@ -53,7 +43,7 @@ jobs:
       - name: Test
         uses: mxcl/xcodebuild@d3ee9b419c1be9a988086c58fe0988f32d99cfc5 # v3.6.0
         with:
-          xcode: ${{ matrix.xcode }}
+          xcode: "^26"
           platform: macOS
           scheme: boringNotch
           action: test
