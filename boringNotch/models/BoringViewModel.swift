@@ -33,6 +33,15 @@ final class BoringViewModel: NSObject, ObservableObject {
     @Published var notchSize: CGSize = getClosedNotchSize()
     @Published var closedNotchSize: CGSize = getClosedNotchSize()
 
+    /// Which panel the open notch shows. Per display, since each display's
+    /// notch has its own geometry. Read it through `currentPanel`, which
+    /// falls back to home if this panel was turned off in Settings.
+    @Published private(set) var activePanel: NotchPanelID = .home
+    /// The notch shape's laid-out size, reported by ContentView whenever its
+    /// layout changes. Not published: it's only read to hit-test the
+    /// pointer, and publishing it would re-render the notch for nothing.
+    var notchFrameSize: CGSize = .zero
+
     let camera: CameraModel
 
     deinit {
@@ -122,6 +131,23 @@ final class BoringViewModel: NSObject, ObservableObject {
         return max(0, menuBarHeight - currentHeight)
     }
 
+    /// Starts the mirror without the stop half of the old toggle. Opening
+    /// the mirror panel calls this, and tapping the preview still toggles.
+    /// Denied access doesn't prompt here: the panel shows "Access Denied"
+    /// and tapping it explains how to fix that.
+    func startCameraPreview() {
+        switch camera.state {
+        case .stopped, .unavailable, .failed:
+            if camera.cameraAvailable {
+                camera.startSession()
+            }
+        case .permissionRequired:
+            camera.requestAccess()
+        case .running, .interrupted, .permissionDenied, .requestingPermission, .starting:
+            break
+        }
+    }
+
     func toggleCameraPreview() {
         switch camera.state {
         case .running, .interrupted:
@@ -160,29 +186,73 @@ final class BoringViewModel: NSObject, ObservableObject {
         }
     }
 
+    /// Whether the pointer is over the notch shape as currently laid out.
+    /// The window sits top-centre on its screen with or without a notch,
+    /// and the shape sits top-centre in the window, so the shape's screen
+    /// rect follows from its size alone.
     func isMouseHovering(position: NSPoint = NSEvent.mouseLocation) -> Bool {
-        let screenFrame = getScreenFrame(screenUUID)
-        if let frame = screenFrame {
-            let baseY = frame.maxY - notchSize.height
-            let baseX = frame.midX - notchSize.width / 2
-
-            return position.y >= baseY && position.x >= baseX && position.x <= baseX + notchSize.width
-        }
-
-        return false
+        guard let frame = getScreenFrame(screenUUID), notchFrameSize != .zero else { return false }
+        let rect = CGRect(
+            x: frame.midX - notchFrameSize.width / 2,
+            y: frame.maxY - notchFrameSize.height,
+            width: notchFrameSize.width,
+            height: notchFrameSize.height
+        )
+        return rect.contains(position)
     }
 
-    @discardableResult
-    func open() -> Bool {
-        guard !coordinator.firstLaunch, notchState != .open else { return false }
+    var currentPanel: NotchPanel {
+        if let panel = NotchPanels.panel(for: activePanel), panel.isAvailable() {
+            return panel
+        }
+        return NotchPanels.home
+    }
 
-        self.notchSize = openNotchSize
+    /// Opens the notch on `panel`, or on the default panel when nil. If the
+    /// notch is already open, switches to `panel` instead. Returns whether
+    /// the notch went from closed to open.
+    @discardableResult
+    func open(panel: NotchPanelID? = nil) -> Bool {
+        guard !coordinator.firstLaunch else { return false }
+        guard notchState != .open else {
+            if let panel { showPanel(panel) }
+            return false
+        }
+
+        setActivePanel(panel ?? defaultPanel)
         self.notchState = .open
 
         // Force music information update when notch is opened
         MusicManager.shared.forceUpdate()
 
         return true
+    }
+
+    /// Switches the open notch to another panel. Wrap in an animation to
+    /// morph the shape; ContentView uses StandardAnimations.panelMorph.
+    func showPanel(_ id: NotchPanelID) {
+        guard notchState == .open else { return }
+        setActivePanel(id)
+    }
+
+    private func setActivePanel(_ id: NotchPanelID) {
+        // A panel that's been turned off (or a stale id) lands on home.
+        let next = NotchPanels.panel(for: id).flatMap { $0.isAvailable() ? $0 : nil } ?? NotchPanels.home
+        let previous = currentPanel
+        guard previous.id != next.id || notchState == .closed else { return }
+        if previous.id != next.id {
+            previous.onDeactivate(self)
+        }
+        activePanel = next.id
+        next.onActivate(self)
+    }
+
+    /// The shelf when it has files and the user asked for it, otherwise home.
+    private var defaultPanel: NotchPanelID {
+        if Defaults[.boringShelf] && !ShelfStateViewModel.shared.isEmpty && Defaults[.openShelfByDefault] {
+            return .shelf
+        }
+        return .home
     }
 
     func close() {
@@ -201,14 +271,8 @@ final class BoringViewModel: NSObject, ObservableObject {
             self.coordinator.toggleSneakPeek(status: false, type: .music, targetScreenUUID: self.screenUUID)
         }
         self.edgeAutoOpenActive = false
-
-        // Set the current view to shelf if it contains files and the user enables openShelfByDefault
-        // Otherwise, if the user has not enabled openLastShelfByDefault, set the view to home
-        if Defaults[.boringShelf] && !ShelfStateViewModel.shared.isEmpty && Defaults[.openShelfByDefault] {
-            coordinator.currentView = .shelf
-        } else if !coordinator.openLastTabByDefault {
-            coordinator.currentView = .home
-        }
+        // The panel isn't reset here: the open content is still on screen
+        // during the close animation. open() picks the next panel.
     }
 
     func closeHello() {

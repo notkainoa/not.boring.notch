@@ -2,8 +2,9 @@
 //  CompactHomeView.swift
 //  boringNotch
 //
-//  A smaller open-notch layout: just the now-playing essentials — art,
-//  title, scrubber, transport — with no tab bar, calendar or mirror.
+//  The home panel: the now-playing essentials (art, title, scrubber,
+//  transport). Other features open as their own panels from the header
+//  (see NotchPanel.swift).
 //
 //  Layout and proportions follow Atoll's MinimalisticMusicPlayerView
 //  (https://github.com/Ebullioscopic/Atoll, GPL-3.0, itself a boring.notch
@@ -11,13 +12,9 @@
 //  visualizer block on the right sized to match the trailing time label so
 //  the bars centre over it, a progress row, and a transport row.
 //
-//  Transport and slider are deliberately shared with the standard layout
-//  (MusicControlSlotButton / MusicSliderView) rather than ported separately,
-//  so seeking and the buttons behave identically in both layouts instead of
-//  drifting apart. The transport row is a fixed five here rather than the
-//  musicControlSlots preference — that preference exists to configure the
-//  full layout, and its default would leave compact mode without shuffle or
-//  media output.
+//  Transport and slider come from MusicPlayerControls.swift
+//  (MusicControlSlotButton / MusicSliderView), so seeking and the buttons
+//  behave the same wherever they're used.
 //
 
 import Defaults
@@ -26,7 +23,6 @@ import SwiftUI
 struct CompactHomeView: View {
     @EnvironmentObject var vm: BoringViewModel
     @ObservedObject var musicManager = MusicManager.shared
-    @ObservedObject var batteryModel = BatteryStatusViewModel.shared
     let albumArtNamespace: Namespace.ID
     let horizontalMediaGestureFeedback: CGFloat
 
@@ -48,10 +44,9 @@ struct CompactHomeView: View {
     private let vizBlockWidth: CGFloat = 42
     private let vizBarWidth: CGFloat = 24
 
-    // No idle branch, deliberately. The standard layout has none either —
-    // it renders whatever MusicManager last cached, so a paused or stopped
-    // track keeps its art, title and scrub position. A "Nothing Playing"
-    // placeholder here made compact mode lose state the full layout keeps.
+    // No idle branch, deliberately: it renders whatever MusicManager last
+    // cached, so a paused or stopped track keeps its art, title and scrub
+    // position. A "Nothing Playing" placeholder lost that state.
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -65,7 +60,7 @@ struct CompactHomeView: View {
         }
         .padding(.horizontal, 12)
         // Atoll's 15/3 formula assumes the player is the whole panel; here
-        // a notch-clearance spacer sits above it, so these are trimmed to
+        // the panel header sits above it, so these are trimmed to
         // land the panel at the intended overall height. The 2pt bottom pad
         // keeps the play/pause's hover fill from kissing the rounded corner
         // without adding a visible band of empty space.
@@ -118,26 +113,6 @@ struct CompactHomeView: View {
                 .frame(width: vizBlockWidth)
             }
         }
-        .overlay(alignment: .topTrailing) {
-            // Compact mode hides BoringHeader (it spans the full notch
-            // width), which took the battery with it. Overlaid rather than
-            // placed in the HStack so it doesn't steal width from the title.
-            if Defaults[.showBatteryIndicator] {
-                BoringBatteryView(
-                    batteryWidth: 24,
-                    isCharging: batteryModel.isCharging,
-                    isInLowPowerMode: batteryModel.isInLowPowerMode,
-                    isPluggedIn: batteryModel.isPluggedIn,
-                    levelBattery: batteryModel.levelBattery,
-                    maxCapacity: batteryModel.maxCapacity,
-                    timeToFullCharge: batteryModel.timeToFullCharge,
-                    timeToDischarge: batteryModel.timeToDischarge,
-                    maxAdapterWatts: batteryModel.maxAdapterWatts,
-                    isForNotification: false
-                )
-                .offset(y: -14)
-            }
-        }
     }
 
     // MARK: - Progress
@@ -166,9 +141,7 @@ struct CompactHomeView: View {
 
     // MARK: - Transport
 
-    /// The user's configured control slots, clamped like the standard
-    /// layout's activeSlots, rendered through the same MusicControlSlotButton
-    /// — so sizing, glyphs and the swipe-to-skip bounce match exactly.
+    /// The user's configured control slots, clamped to the supported range.
     private var displayedSlots: [MusicControlButton] {
         let sanitizedLimit = min(
             max(slotLimit, MusicControlButton.minSlotCount),
@@ -199,9 +172,8 @@ struct CompactHomeView: View {
                 .frame(width: albumArtWidth, height: albumArtWidth)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
 
-            // Badge scaled to this art. AlbumArtView's is a fixed 30pt with
-            // a +10/+10 offset, sized for the 120pt art in the full layout —
-            // on 50pt art it spills outside the corner.
+            // Badge scaled to this art: a larger fixed badge spills outside
+            // the corner of 45pt art.
             if showMediaSourceAppIcon && !musicManager.usingAppIconForArtwork {
                 appIcon(for: musicManager.bundleIdentifier ?? MediaAppBundleID.appleMusic)
                     .resizable().scaledToFit()
@@ -213,7 +185,7 @@ struct CompactHomeView: View {
     }
 }
 
-/// Output device list shared by both layouts' media-output buttons.
+/// Output device list for the media-output button.
 /// Row treatment follows macOS's AirPlay output menu: rounded highlight on
 /// hover, circular icon badge marking the active output, no checkmark.
 struct AudioOutputPicker: View {

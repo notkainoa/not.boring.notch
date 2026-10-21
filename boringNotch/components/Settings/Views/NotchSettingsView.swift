@@ -9,7 +9,6 @@ import Defaults
 import SwiftUI
 
 struct NotchSettingsView: View {
-    @ObservedObject var coordinator = BoringViewCoordinator.shared
 
     @Default(.gestureSensitivity) var gestureSensitivity
     @Default(.minimumHoverDuration) var minimumHoverDuration
@@ -130,7 +129,6 @@ struct NotchSettingsView: View {
             Defaults.Toggle(key: .enableHaptics) {
                 Text("Enable haptic feedback")
             }
-            Toggle("Remember last tab", isOn: $coordinator.openLastTabByDefault)
             if openNotchOnHover {
                 Slider(value: $minimumHoverDuration, in: 0...1, step: 0.1) {
                     HStack {

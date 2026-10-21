@@ -12,45 +12,45 @@ import SwiftUI
 struct CameraPreviewView: View {
     let camera: CameraModel
     @Default(.isMirrored) private var isMirrored
+    @Default(.mirrorShape) private var mirrorShape
 
-    private static let mirrorSide: CGFloat = 130
-
-    private static var mirrorCornerRadius: CGFloat {
-        Defaults[.mirrorShape] == .rectangle ? MusicPlayerImageSizes.cornerRadiusInset.opened : mirrorSide / 2
-    }
-
+    // Fills whatever frame the mirror panel gives it; the panel sizes itself
+    // to the camera's aspect ratio (or a square for the circle shape).
     var body: some View {
-        ZStack {
-            if let session = camera.activeSession {
-                CameraPreviewLayerView(
-                    session: session,
-                    isMirrored: isMirrored
-                )
-                .frame(width: Self.mirrorSide, height: Self.mirrorSide)
-                .clipShape(RoundedRectangle(cornerRadius: Self.mirrorCornerRadius))
-                .opacity(camera.isSessionRunning ? 1 : 0)
-            }
+        GeometryReader { geo in
+            let cornerRadius = mirrorShape == .rectangle
+                ? MusicPlayerImageSizes.cornerRadiusInset.opened
+                : min(geo.size.width, geo.size.height) / 2
 
-            if !camera.isSessionRunning {
-                ZStack {
-                    RoundedRectangle(cornerRadius: Self.mirrorCornerRadius)
+            ZStack {
+                if let session = camera.activeSession {
+                    CameraPreviewLayerView(
+                        session: session,
+                        isMirrored: isMirrored
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+                    .opacity(camera.isSessionRunning ? 1 : 0)
+                }
+
+                if !camera.isSessionRunning {
+                    RoundedRectangle(cornerRadius: cornerRadius)
                         .fill(Color(red: 20/255, green: 20/255, blue: 20/255))
                         .strokeBorder(.white.opacity(0.04), lineWidth: 1)
-                        .frame(width: Self.mirrorSide, height: Self.mirrorSide)
                     VStack(spacing: 8) {
                         Image(systemName: camera.state == .permissionDenied ? "exclamationmark.triangle" : "web.camera")
                             .foregroundStyle(.gray)
-                            .font(.system(size: Self.mirrorSide / 3.5))
+                            .font(.system(size: min(geo.size.width, geo.size.height) / 4.5))
                         Text(mirrorPlaceholderTitle)
                             .font(.caption2)
                             .foregroundColor(.gray)
                     }
                 }
             }
-        }
-        .frame(width: Self.mirrorSide, height: Self.mirrorSide)
-        .onTapGesture {
-            handleCameraTap()
+            .frame(width: geo.size.width, height: geo.size.height)
+            .contentShape(RoundedRectangle(cornerRadius: cornerRadius))
+            .onTapGesture {
+                handleCameraTap()
+            }
         }
     }
 
@@ -197,4 +197,5 @@ final class CameraPreviewNSView: NSView {
 
 #Preview {
     CameraPreviewView(camera: CameraModel())
+        .frame(width: 320, height: 180)
 }

@@ -10,16 +10,20 @@ import Foundation
 import SwiftUI
 
 let shadowPadding: CGFloat = 20
-let openNotchSize: CGSize = .init(width: 640, height: 190)
-let windowSize: CGSize = .init(width: openNotchSize.width, height: openNotchSize.height + shadowPadding)
-let cornerRadiusInsets: (opened: (top: CGFloat, bottom: CGFloat), closed: (top: CGFloat, bottom: CGFloat)) = (opened: (top: 19, bottom: 24), closed: (top: 6, bottom: 14))
-
-/// Compact mode uses a much rounder opened shape than the standard layout
-/// — matching Atoll's minimalisticCornerRadiusInsets (35/35 against the
-/// standard 19/24). At compact's smaller size the standard radius reads
-/// square; the rounder corners are what make it look like a pill rather
-/// than a shrunken panel.
-let compactCornerRadiusInsets: (opened: (top: CGFloat, bottom: CGFloat), closed: (top: CGFloat, bottom: CGFloat)) = (opened: (top: 35, bottom: 35), closed: cornerRadiusInsets.closed)
+/// The largest the open notch gets, whichever panel is showing. The window
+/// is this size (plus shadow room) all the time, so panels are clamped to
+/// it (NotchPanelLayout) and it stays no bigger than the biggest panel needs:
+/// the window covers the top of the screen even where it draws nothing.
+let maxOpenNotchSize: CGSize = .init(width: 640, height: 280)
+let windowSize: CGSize = .init(width: maxOpenNotchSize.width, height: maxOpenNotchSize.height + shadowPadding)
+/// Where a file drag near the top of the screen counts as heading for the
+/// notch, which opens the shelf.
+let shelfDragRegionSize: CGSize = .init(width: 640, height: 190)
+/// The opened shape is much rounder than the closed one (35 vs 19 in the old
+/// tabbed layout). At panel sizes the smaller radius reads square; this is
+/// what makes it look like a pill rather than a shrunken panel. Matches
+/// Atoll's minimalisticCornerRadiusInsets.
+let cornerRadiusInsets: (opened: (top: CGFloat, bottom: CGFloat), closed: (top: CGFloat, bottom: CGFloat)) = (opened: (top: 35, bottom: 35), closed: (top: 6, bottom: 14))
 
 // Horizontal gap between closed-state live-activity content (album art / waveform)
 // and the physical notch edge. Without this margin the hardware bezel clips the

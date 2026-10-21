@@ -45,32 +45,12 @@ struct ExpandedItem {
 final class BoringViewCoordinator: ObservableObject {
     static let shared = BoringViewCoordinator()
 
-    @Published var currentView: NotchViews = .home
     @Published var helloAnimationRunning: Bool = false
     private var osdEnableTask: Task<Void, Never>?
 
     @AppStorage("firstLaunch") var firstLaunch: Bool = true
     @AppStorage("musicLiveActivityEnabled") var musicLiveActivityEnabled: Bool = true
     @AppStorage("currentMicStatus") var currentMicStatus: Bool = true
-
-    @AppStorage("alwaysShowTabs") var alwaysShowTabs: Bool = true {
-        didSet {
-            if !alwaysShowTabs {
-                openLastTabByDefault = false
-                if ShelfStateViewModel.shared.isEmpty || !Defaults[.openShelfByDefault] {
-                    currentView = .home
-                }
-            }
-        }
-    }
-
-    @AppStorage("openLastTabByDefault") var openLastTabByDefault: Bool = false {
-        didSet {
-            if openLastTabByDefault {
-                alwaysShowTabs = true
-            }
-        }
-    }
 
     // Legacy storage for migration
     @AppStorage("preferred_screen_name") private var legacyPreferredScreenName: String?
@@ -90,7 +70,6 @@ final class BoringViewCoordinator: ObservableObject {
     @Published var optionKeyPressed: Bool = true
     private var accessibilityObserver: Any?
     private var osdReplacementCancellable: AnyCancellable?
-    private var boringShelfCancellable: AnyCancellable?
     private var osdSourceCancellables: [AnyCancellable] = []
     private var notificationLiveActivityCancellable: AnyCancellable?
     private var uiEventCancellable: AnyCancellable?
@@ -183,16 +162,6 @@ final class BoringViewCoordinator: ObservableObject {
             Defaults.publisher(.osdBrightnessSource).sink { [weak self] _ in Task { @MainActor in self?.applyOSDSources() } },
             Defaults.publisher(.osdVolumeSource).sink { [weak self] _ in Task { @MainActor in self?.applyOSDSources() } }
         ]
-        boringShelfCancellable = Defaults.publisher(.boringShelf)
-            .sink { [weak self] change in
-                Task { @MainActor in
-                    guard let self = self else { return }
-                    if !change.newValue && self.currentView == .shelf {
-                        self.currentView = .home
-                    }
-                }
-            }
-
         // Observe changes to the notification live activity toggle; it owns
         // the notification watcher lifecycle.
         notificationLiveActivityCancellable = Defaults.publisher(.notificationLiveActivity)
@@ -413,9 +382,5 @@ final class BoringViewCoordinator: ObservableObject {
                 expandingViewTask?.cancel()
             }
         }
-    }
-
-    func showEmpty() {
-        currentView = .home
     }
 }

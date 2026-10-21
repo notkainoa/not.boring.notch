@@ -31,6 +31,11 @@ final class CameraModel {
     private(set) var activeCameraID: String?
     private(set) var activeSession: AVCaptureSession?
     private(set) var isIntendedRunning = false
+    /// Width / height of the last camera that started streaming. Kept after
+    /// the session stops so the mirror panel opens at the right shape next
+    /// time instead of reshaping once capture starts. 16:9 until a camera
+    /// has run, which is what built-in FaceTime cameras deliver.
+    private(set) var videoAspectRatio: CGFloat = 16.0 / 9.0
 
     @ObservationIgnored private let engine: CameraSessionEngine
     @ObservationIgnored private var startAfterAuthorization = false
@@ -198,6 +203,9 @@ final class CameraModel {
             lastPublishedDeviceList = availableCameras
             activeSession = session
             activeCameraID = device.id
+            if let ratio = Self.aspectRatio(ofDeviceID: device.id) {
+                videoAspectRatio = ratio
+            }
             state = .running
 
         case .interrupted:
@@ -216,6 +224,13 @@ final class CameraModel {
             activeCameraID = nil
             state = isIntendedRunning ? .failed(message) : .stopped
         }
+    }
+
+    private static func aspectRatio(ofDeviceID id: String) -> CGFloat? {
+        guard let device = AVCaptureDevice(uniqueID: id) else { return nil }
+        let dimensions = CMVideoFormatDescriptionGetDimensions(device.activeFormat.formatDescription)
+        guard dimensions.width > 0, dimensions.height > 0 else { return nil }
+        return CGFloat(dimensions.width) / CGFloat(dimensions.height)
     }
 
     private static func state(for status: AVAuthorizationStatus) -> CameraState {
