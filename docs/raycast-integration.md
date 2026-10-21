@@ -306,10 +306,11 @@ Why this order: the push API is what makes the notch a *display* for Raycast, an
 ## Proposed prototype (1–2 days, throwaway branch)
 
 1. **Deeplink behavior test, run by the user (no code).**
-   - Pick the `no-view` command `raycast://extensions/thomas/color-picker/pick-color` or, better, a harmless one.
-   - From Terminal, run `open -g "raycast://extensions/<owner>/<ext>/<cmd>?launchType=background"` twice, choosing "Always Open Command" the first time. Then run it with `launchType=userInitiated`.
+   - Use the installed `no-view` command Color Picker → Pick Color (`raycast://extensions/thomas/color-picker/pick-color`). It only opens the system colour loupe, and Esc cancels it.
+   - From Terminal, run `open -g "raycast://extensions/thomas/color-picker/pick-color?launchType=background"` twice, choosing "Always Open Command" the first time. Then run it with `launchType=userInitiated`, then with a `view` command.
    - Record whether a prompt appears, whether the Raycast window or focus moves, and whether the choice persists after quitting and relaunching Raycast.
-   - The user needs to do this. Agents on this Mac must not drive Raycast's GUI.
+   - The exact steps are under [How to test the open questions](#how-to-test-the-open-questions).
+   - The user needs to do this. Agents on this Mac must not launch or drive apps.
 2. **Socket and CLI spike in the app.**
    - A `RaycastBridgeServer` behind a `Defaults` flag, listening on `<container>/Application Support/not.boring.notch/bridge.sock`.
    - One message type, `alert`, routed into the existing live-activity or alert path. Plus `notchctl alert --title … --subtitle …`.
@@ -320,3 +321,27 @@ Why this order: the push API is what makes the notch a *display* for Raycast, an
 4. **Manifest reader spike.** Parse `~/.config/raycast/extensions/*/package.json` with a read-only home-relative exception. List `no-view` commands in a debug panel and fire one by deeplink. Validate the deeplink built from `owner ?? author`/`name`/`command.name` against Raycast's "Copy Deeplink" output for 3 extensions.
 
 Success criteria: an alert appears in the notch within ~100 ms of running the Raycast command, Raycast never comes to the front for `no-view` flows after the first approval, and there is no measurable idle cost.
+
+## How to test the open questions
+
+This is for the user to run. Agents don't launch apps on the shared Mac. No build is needed and the notch app is not involved. Run it from Terminal with Raycast running, and keep another app (such as Terminal) in front so focus changes are visible.
+
+1. **First background launch:** `open -g "raycast://extensions/thomas/color-picker/pick-color?launchType=background"`
+   - Expected: a Raycast confirmation prompt. Note whether it raises the Raycast window and whether it offers "Always Open Command".
+   - Choose "Always Open Command". The colour loupe should appear. Press Esc.
+2. **Repeat step 1.**
+   - Expected: no prompt, the loupe appears straight away, and the Raycast window never shows. Terminal should keep focus once the loupe is dismissed.
+3. **User-initiated launch:** `open -g "raycast://extensions/thomas/color-picker/pick-color?launchType=userInitiated"`
+   - Note whether the Raycast window flashes or takes focus.
+4. **`view` command with an argument:** `open -g "raycast://extensions/thomas/color-picker/convert-color?arguments=%7B%22text%22%3A%22%23FF6363%22%7D"`
+   - Expected: a prompt if it is new, then the Raycast window opens on Convert Color with `#FF6363` filled in.
+5. **Persistence:** quit Raycast from its menu-bar icon (Quit Raycast), reopen it, and repeat step 2. The "Always Open" choice should still apply.
+6. **Background launch of a fresh command:** `open -g "raycast://extensions/thomas/color-picker/menu-bar?launchType=background"`
+   - This is a menu-bar command, so it only refreshes the menu-bar item.
+   - Note whether a prompt appears even though `launchType=background` is set.
+
+Please write down these four answers, because they decide the launcher UX:
+- Does the prompt appear for background launches?
+- Does "always" persist?
+- Does anything steal focus?
+- Does the `arguments` prefill work?
