@@ -29,10 +29,14 @@ struct NotchPanelHeader: View {
     static let buttonSize: CGFloat = 24
     static let buttonSpacing: CGFloat = 4
     static let minimumHeight: CGFloat = 28
-    /// Room each side needs beside the cutout: the gear plus three panel
-    /// buttons on the leading side (the battery on the trailing side needs
-    /// less).
-    static let sideWidth: CGFloat = 4 * buttonSize + 3 * buttonSpacing
+    /// Room each side needs beside the cutout: the leading side's gear
+    /// (when shown) and panel buttons. The battery on the trailing side
+    /// needs less, and the cutout is centred, so both sides get this much.
+    static func leadingWidth(panelCount: Int) -> CGFloat {
+        let count = panelCount + (Defaults[.settingsIconInNotch] ? 1 : 0)
+        guard count > 0 else { return 0 }
+        return CGFloat(count) * buttonSize + CGFloat(count - 1) * buttonSpacing
+    }
     /// How far the header may reach into the shape's side padding. That
     /// padding is sized for the flared top corners, which at header height
     /// have already curved most of the way in.
@@ -106,6 +110,7 @@ struct NotchPanelHeader: View {
         }
         .buttonStyle(.plain)
         .help(Text("Settings"))
+        .accessibilityLabel(Text("Settings"))
     }
 
     private func isOSDType(_ type: SneakContentType) -> Bool {

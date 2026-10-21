@@ -408,6 +408,7 @@ struct ContentView: View {
                         withAnimation(StandardAnimations.panelMorph) {
                             vm.showPanel(.shelf)
                         }
+                        reconcileHoverAfterResize()
                     }
                 }
                 return
@@ -478,7 +479,7 @@ struct ContentView: View {
                           BoringFaceAnimation()
                        } else if showsHeader {
                            NotchPanelHeader(
-                               panels: NotchPanels.featurePanels,
+                               panels: NotchPanels.featurePanels(for: vm),
                                activePanel: vm.currentPanel.id,
                                cutoutWidth: vm.hasNotch ? vm.closedNotchSize.width : 0,
                                onSelect: selectPanel

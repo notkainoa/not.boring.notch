@@ -33,9 +33,11 @@ final class CameraModel {
     private(set) var isIntendedRunning = false
     /// Width / height of the last camera that started streaming. Kept after
     /// the session stops so the mirror panel opens at the right shape next
-    /// time instead of reshaping once capture starts. 16:9 until a camera
-    /// has run, which is what built-in FaceTime cameras deliver.
-    private(set) var videoAspectRatio: CGFloat = 16.0 / 9.0
+    /// time instead of reshaping once capture starts. 4:3 until a camera
+    /// has run, matching the `.medium` preset CameraSessionEngine asks for
+    /// (typically 480×360). A camera that delivers something else still
+    /// reshapes the panel once, the first time it starts.
+    private(set) var videoAspectRatio: CGFloat = 4.0 / 3.0
 
     @ObservationIgnored private let engine: CameraSessionEngine
     @ObservationIgnored private var startAfterAuthorization = false

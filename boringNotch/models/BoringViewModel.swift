@@ -64,6 +64,28 @@ final class BoringViewModel: NSObject, ObservableObject {
         closedNotchSize = notchSize
 
         setupDetectorObserver()
+        setupPanelAvailabilityObserver()
+    }
+
+    /// Turning off the panel that's showing would otherwise only hide it:
+    /// currentPanel falls back to home, but the panel's onDeactivate never
+    /// runs, so the mirror's camera would keep going.
+    private func setupPanelAvailabilityObserver() {
+        Defaults.publisher(keys: .showCalendar, .showMirror, .boringShelf, options: [])
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] in self?.leaveUnavailablePanel() }
+            .store(in: &cancellables)
+    }
+
+    private func leaveUnavailablePanel() {
+        guard activePanel != .home,
+              let panel = NotchPanels.panel(for: activePanel),
+              !panel.isAvailable(self) else { return }
+        panel.onDeactivate(self)
+        activePanel = .home
+        if notchState == .open {
+            NotchPanels.home.onActivate(self)
+        }
     }
 
     private func setupDetectorObserver() {
@@ -202,7 +224,7 @@ final class BoringViewModel: NSObject, ObservableObject {
     }
 
     var currentPanel: NotchPanel {
-        if let panel = NotchPanels.panel(for: activePanel), panel.isAvailable() {
+        if let panel = NotchPanels.panel(for: activePanel), panel.isAvailable(self) {
             return panel
         }
         return NotchPanels.home
@@ -237,7 +259,7 @@ final class BoringViewModel: NSObject, ObservableObject {
 
     private func setActivePanel(_ id: NotchPanelID) {
         // A panel that's been turned off (or a stale id) lands on home.
-        let next = NotchPanels.panel(for: id).flatMap { $0.isAvailable() ? $0 : nil } ?? NotchPanels.home
+        let next = NotchPanels.panel(for: id).flatMap { $0.isAvailable(self) ? $0 : nil } ?? NotchPanels.home
         let previous = currentPanel
         guard previous.id != next.id || notchState == .closed else { return }
         if previous.id != next.id {

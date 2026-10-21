@@ -44,7 +44,7 @@ struct NotchPanel: Identifiable {
     let id: NotchPanelID
     let title: LocalizedStringResource
     let systemImage: String
-    var isAvailable: () -> Bool = { true }
+    var isAvailable: (BoringViewModel) -> Bool = { _ in true }
     var preferredSize: (BoringViewModel) -> NotchPanelSize
     var onActivate: (BoringViewModel) -> Void = { _ in }
     var onDeactivate: (BoringViewModel) -> Void = { _ in }
@@ -74,7 +74,7 @@ enum NotchPanels {
         id: .calendar,
         title: "Calendar",
         systemImage: "calendar",
-        isAvailable: { Defaults[.showCalendar] },
+        isAvailable: { _ in Defaults[.showCalendar] },
         // Room for the date strip plus four or five event rows.
         preferredSize: { _ in NotchPanelSize(width: 360, height: 210) },
         content: { context in
@@ -92,28 +92,43 @@ enum NotchPanels {
         id: .mirror,
         title: "Mirror",
         systemImage: "web.camera",
-        isAvailable: { Defaults[.showMirror] },
+        // No button on a Mac without a camera: the panel would be empty.
+        isAvailable: { vm in Defaults[.showMirror] && vm.camera.cameraAvailable },
         preferredSize: { vm in
-            let height: CGFloat = 190
-            guard Defaults[.mirrorShape] == .rectangle else {
-                return NotchPanelSize(width: height, height: height)
-            }
-            return NotchPanelSize(width: (height * vm.camera.videoAspectRatio).rounded(), height: height)
+            let size = mirrorPreviewSize(vm)
+            return NotchPanelSize(width: size.width, height: size.height)
         },
         // The camera only runs while this panel is showing. close() also
         // stops it, whichever panel is up.
         onActivate: { vm in vm.startCameraPreview() },
         onDeactivate: { vm in vm.camera.stopSession() },
         content: { context in
-            AnyView(CameraPreviewView(camera: context.vm.camera))
+            // The panel can end up wider than the preview (the header
+            // needs room beside a real cutout), so the preview keeps its
+            // own size and sits centred instead of stretching.
+            let size = mirrorPreviewSize(context.vm)
+            return AnyView(
+                CameraPreviewView(camera: context.vm.camera)
+                    .frame(width: size.width, height: size.height)
+                    .frame(maxWidth: .infinity)
+            )
         }
     )
+
+    /// The camera's aspect ratio, or a square for the circle shape.
+    private static func mirrorPreviewSize(_ vm: BoringViewModel) -> CGSize {
+        let height: CGFloat = 190
+        guard Defaults[.mirrorShape] == .rectangle else {
+            return CGSize(width: height, height: height)
+        }
+        return CGSize(width: (height * vm.camera.videoAspectRatio).rounded(), height: height)
+    }
 
     static let shelf = NotchPanel(
         id: .shelf,
         title: "Shelf",
         systemImage: "tray.fill",
-        isAvailable: { Defaults[.boringShelf] },
+        isAvailable: { _ in Defaults[.boringShelf] },
         preferredSize: { _ in NotchPanelSize(width: 480, height: 130) },
         content: { context in
             AnyView(
@@ -134,8 +149,8 @@ enum NotchPanels {
     }
 
     /// Buttons shown in the header.
-    static var featurePanels: [NotchPanel] {
-        builtIn.filter { $0.id != .home && $0.isAvailable() }
+    static func featurePanels(for vm: BoringViewModel) -> [NotchPanel] {
+        builtIn.filter { $0.id != .home && $0.isAvailable(vm) }
     }
 }
 
@@ -175,7 +190,8 @@ enum NotchPanelLayout {
         var size = panel.preferredSize(vm)
         let maximum = maximumContentSize(headerHeight: headerHeight)
         let cutout = vm.hasNotch ? vm.closedNotchSize.width : 0
-        let headerMinimum = cutout + 2 * NotchPanelHeader.sideWidth - 2 * NotchPanelHeader.edgeOverhang
+        let sideWidth = NotchPanelHeader.leadingWidth(panelCount: NotchPanels.featurePanels(for: vm).count)
+        let headerMinimum = cutout + 2 * sideWidth - 2 * NotchPanelHeader.edgeOverhang
         size.width = min(max(size.width, headerMinimum), maximum.width)
         if let height = size.height {
             size.height = min(height, maximum.height)
