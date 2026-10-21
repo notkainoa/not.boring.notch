@@ -502,9 +502,10 @@ extension Defaults.Keys {
 
     // MARK: Layout
     /// Swaps the opened notch for a smaller, player-only layout: no tab
-    /// bar, calendar or mirror. Off by default so existing users keep the
-    /// layout they already have.
-    static let compactMode = Key<Bool>("compactMode", default: false)
+    /// bar, calendar or mirror. PROTOTYPE: on by default so the Raycast home
+    /// bar shows without a toggle; compact becomes the only layout in
+    /// VISION item 1.
+    static let compactMode = Key<Bool>("compactMode", default: true)
 
     // MARK: Notifications
     /// Off by default: mirroring banners needs Accessibility access.
