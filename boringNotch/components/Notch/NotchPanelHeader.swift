@@ -2,8 +2,8 @@
 //  NotchPanelHeader.swift
 //  boringNotch
 //
-//  The open notch's top row: feature panel buttons on the leading side,
-//  battery and settings (or the open-notch OSD) on the trailing side. On a
+//  The open notch's top row: settings then the feature panel buttons on the
+//  leading side, battery (or the open-notch OSD) on the trailing side. On a
 //  notched display the two sides sit either side of the camera cutout. On
 //  a display without a notch it's one bar with no gap in the middle.
 //
@@ -29,9 +29,10 @@ struct NotchPanelHeader: View {
     static let buttonSize: CGFloat = 24
     static let buttonSpacing: CGFloat = 4
     static let minimumHeight: CGFloat = 28
-    /// Room each side needs beside the cutout: three panel buttons on the
-    /// leading side, or battery and gear on the trailing side.
-    static let sideWidth: CGFloat = 88
+    /// Room each side needs beside the cutout: the gear plus three panel
+    /// buttons on the leading side (the battery on the trailing side needs
+    /// less).
+    static let sideWidth: CGFloat = 4 * buttonSize + 3 * buttonSpacing
     /// How far the header may reach into the shape's side padding. That
     /// padding is sized for the flared top corners, which at header height
     /// have already curved most of the way in.
@@ -40,6 +41,9 @@ struct NotchPanelHeader: View {
     var body: some View {
         HStack(spacing: 0) {
             HStack(spacing: Self.buttonSpacing) {
+                if settingsIconInNotch {
+                    settingsButton
+                }
                 ForEach(panels) { panel in
                     NotchPanelButton(
                         panel: panel,
@@ -72,37 +76,36 @@ struct NotchPanelHeader: View {
             )
             .transition(.scale(scale: 0.8).combined(with: .opacity))
         } else {
-            HStack(spacing: Self.buttonSpacing) {
-                if settingsIconInNotch {
-                    Button {
-                        DispatchQueue.main.async {
-                            SettingsWindowController.shared.showWindow()
-                        }
-                    } label: {
-                        Image(systemName: "gear")
-                            .font(.system(size: 12, weight: .semibold))
-                            .frame(width: Self.buttonSize, height: Self.buttonSize)
-                            .contentShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .help(Text("Settings"))
-                }
-                if showBatteryIndicator {
-                    BoringBatteryView(
-                        batteryWidth: 24,
-                        isCharging: batteryModel.isCharging,
-                        isInLowPowerMode: batteryModel.isInLowPowerMode,
-                        isPluggedIn: batteryModel.isPluggedIn,
-                        levelBattery: batteryModel.levelBattery,
-                        maxCapacity: batteryModel.maxCapacity,
-                        timeToFullCharge: batteryModel.timeToFullCharge,
-                        timeToDischarge: batteryModel.timeToDischarge,
-                        maxAdapterWatts: batteryModel.maxAdapterWatts,
-                        isForNotification: false
-                    )
-                }
+            if showBatteryIndicator {
+                BoringBatteryView(
+                    batteryWidth: 24,
+                    isCharging: batteryModel.isCharging,
+                    isInLowPowerMode: batteryModel.isInLowPowerMode,
+                    isPluggedIn: batteryModel.isPluggedIn,
+                    levelBattery: batteryModel.levelBattery,
+                    maxCapacity: batteryModel.maxCapacity,
+                    timeToFullCharge: batteryModel.timeToFullCharge,
+                    timeToDischarge: batteryModel.timeToDischarge,
+                    maxAdapterWatts: batteryModel.maxAdapterWatts,
+                    isForNotification: false
+                )
             }
         }
+    }
+
+    private var settingsButton: some View {
+        Button {
+            DispatchQueue.main.async {
+                SettingsWindowController.shared.showWindow()
+            }
+        } label: {
+            Image(systemName: "gear")
+                .font(.system(size: 12, weight: .semibold))
+                .frame(width: Self.buttonSize, height: Self.buttonSize)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .help(Text("Settings"))
     }
 
     private func isOSDType(_ type: SneakContentType) -> Bool {

@@ -6,7 +6,7 @@ VISION.md items 1 and 2: compact is the only layout, and features open as panels
 
 The open notch is one black `NotchShape` holding two rows:
 
-1. **Header** (`NotchPanelHeader`). On a notched display it sits either side of the camera cutout. On a non-notch display it is a short bar with no gap in the middle. The leading side has one button per available feature panel. The trailing side has the battery and settings gear, or the open-notch OSD while one is showing. Clicking the active panel's button again goes back to home.
+1. **Header** (`NotchPanelHeader`). On a notched display it sits either side of the camera cutout. On a non-notch display it is a short bar with no gap in the middle. The leading side has the settings gear first, then one button per available feature panel. The trailing side has the battery, or the open-notch OSD while one is showing. Clicking the active panel's button again goes back to home.
 2. **Panel content.** Home (music, `CompactHomeView`) is the default. Calendar, Mirror and Shelf are the built-in feature panels.
 
 A notification that is open replaces both rows with its reply UI, as before.
