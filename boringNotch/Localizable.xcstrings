@@ -57,6 +57,16 @@
         }
       }
     },
+    "%lld%%" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld%%"
+          }
+        }
+      }
+    },
     "'Now Playing' was the only option on previous versions and works with all media apps." : {
       "localizations" : {
         "cs" : {
@@ -941,6 +951,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Erişilebilirlik"
+          }
+        }
+      }
+    },
+    "Accessories" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accessories"
           }
         }
       }
@@ -3546,6 +3566,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "BetterDisplay yüklenmemiş ya da şu anda çalışmıyor"
+          }
+        }
+      }
+    },
+    "Bluetooth device" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bluetooth device"
           }
         }
       }
@@ -7244,6 +7274,16 @@
         }
       }
     },
+    "Connected" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connected"
+          }
+        }
+      }
+    },
     "Connects directly to the Apple Music app." : {
       "comment" : "Onboarding description of the Apple Music source.",
       "localizations" : {
@@ -9530,6 +9570,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已停用"
+          }
+        }
+      }
+    },
+    "Disconnected" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disconnected"
           }
         }
       }
@@ -15288,6 +15338,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "鍵盤源"
+          }
+        }
+      }
+    },
+    "L %lld%%  R %lld%%" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L %lld%%  R %lld%%"
           }
         }
       }
@@ -25631,6 +25691,16 @@
         }
       }
     },
+    "Show Bluetooth accessory connections" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Bluetooth accessory connections"
+          }
+        }
+      }
+    },
     "Show calendar" : {
       "localizations" : {
         "cs" : {
@@ -25784,6 +25854,16 @@
         }
       }
     },
+    "Show clock on displays without a notch" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show clock on displays without a notch"
+          }
+        }
+      }
+    },
     "Show cool face animation while inactive" : {
       "localizations" : {
         "de" : {
@@ -25892,6 +25972,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "閒置時顯示炫酷臉部動畫"
+          }
+        }
+      }
+    },
+    "Show date" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show date"
           }
         }
       }
@@ -27690,6 +27780,17 @@
         }
       }
     },
+    "Shows AirPods, headphones, keyboards and mice in the notch when they connect, with their battery level when available. macOS will ask for Bluetooth access." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shows AirPods, headphones, keyboards and mice in the notch when they connect, with their battery level when available. macOS will ask for Bluetooth access."
+          }
+        }
+      },
+      "comment" : "Footer for the Bluetooth accessory connection setting."
+    },
     "Shuffle" : {
       "localizations" : {
         "fr" : {
@@ -28861,6 +28962,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Arka planda çalışan yardımcı süreç kapandı ya da macOS tarafından sonlandırıldı. Sıradaki OSD olayında kendiliğinden yeniden başlayacaktır."
+          }
+        }
+      }
+    },
+    "The clock shows in the closed notch, also while music is playing. Notifications cover it, and with the face animation on, the face takes its place while idle." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The clock shows in the closed notch, also while music is playing. Notifications cover it, and with the face animation on, the face takes its place while idle."
           }
         }
       }

@@ -449,6 +449,10 @@ extension Defaults.Keys {
     static let cornerRadiusScaling = Key<Bool>("cornerRadiusScaling", default: true)
 
     static let showNotHumanFace = Key<Bool>("showNotHumanFace", default: false)
+    /// Time in the closed notch on displays without a physical notch, while
+    /// nothing else (music, a notification) is showing there.
+    static let showClockWithoutNotch = Key<Bool>("showClockWithoutNotch", default: false)
+    static let clockShowsDate = Key<Bool>("clockShowsDate", default: true)
     static let tileShowLabels = Key<Bool>("tileShowLabels", default: false)
     static let showCalendar = Key<Bool>("showCalendar", default: false)
     static let hideCompletedReminders = Key<Bool>("hideCompletedReminders", default: true)
@@ -499,6 +503,9 @@ extension Defaults.Keys {
     // MARK: OSD
     static let osdReplacement = Key<Bool>(PreferenceCompatibility.migratedKeyName("osdReplacement", from: "hudReplacement"), default: false)
     static let inlineOSD = Key<Bool>(PreferenceCompatibility.migratedKeyName("inlineOSD", from: "inlineHUD"), default: false)
+
+    // MARK: Bluetooth accessories
+    static let showBluetoothAccessories = Key<Bool>("showBluetoothAccessories", default: false)
 
     // MARK: Layout
     /// Swaps the opened notch for a smaller, player-only layout: no tab
