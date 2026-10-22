@@ -25,7 +25,7 @@ Today `Defaults[.compactMode]` (default `false`) switches `ContentView` between 
 - Keep what the old tabs used: the calendar, mirror (webcam), shelf and music views are reused inside expandable panels.
 
 ### 2. Expandable panels
-A compact bar with buttons (or activity chips) for each feature. Clicking one expands the notch **both horizontally and vertically** to the size that feature needs, and collapsing returns to compact.
+A compact bar with buttons (or activity chips) for each feature, below now playing on the home view. Build it as one generic bar with an item type (built-in panel, Raycast command, later others) so Raycast pins (item 6) drop in without redoing the layout. Clicking one expands the notch **both horizontally and vertically** to the size that feature needs, and collapsing returns to compact.
 - **Calendar:** expanded size fits the date strip and event list.
 - **Mirror (camera):** expanded size matches the camera aspect ratio.
 - Others later: shelf, Raycast panels.
@@ -57,11 +57,19 @@ Upstream already handles displays without a notch (`hasNotch`, `nonNotchHeight`,
 - Make sure the new expandable panels (item 2) size correctly without a notch.
 
 ### 6. Raycast bridge
-Let Raycast and its extensions drive the notch. Design to settle:
-- Transport: URL scheme, local socket or HTTP, or Raycast Script Commands calling a CLI that talks to the app.
-- What Raycast can send: temporary alerts, live activities, progress, and content panels (item 2).
-- This is **not** an extension store or runtime. It integrates the Raycast extensions the user already has installed and lets them drive things from the notch. That is why we're not using upstream's extension platform.
-- Needs research on what Raycast allows from outside Raycast (deeplinks, URL schemes, Script Commands, any local API, reading installed extensions) before committing to a design.
+Let Raycast and its extensions drive the notch. This is **not** an extension store or runtime. It integrates the Raycast extensions the user already has installed and lets them drive things from the notch. That is why we're not using upstream's extension platform. Research and design are in `docs/raycast-integration.md`.
+- **Pinned commands in the home bar.**
+  - The user pins installed Raycast commands into the item 2 bar, after the built-in panel buttons, with an overflow "⋯" that opens a Raycast panel.
+  - Clicking runs the command by `raycast://` deeplink:
+    - `no-view` commands run in the background with a brief "sent" state.
+    - Commands with arguments expand into a small form.
+    - `view` commands collapse the notch and open Raycast.
+  - Commands are discovered from `~/.config/raycast/extensions/*/package.json`.
+- **Settings → Raycast:** search installed commands, pin and reorder them, and a "Try it" button so Raycast's one-time confirmation happens while pinning.
+- **Local API:** a unix socket plus a `notchctl` CLI (and a URL scheme for one-liners) that accepts alerts, live activities with progress, and panel content. It also serves non-Raycast clients.
+- **Companion Raycast extension:** `no-view` commands that push alerts, progress and panels to the local API.
+- The closed notch doesn't show pins for now.
+- No new home layout. Now playing stays as it is, and the bar is the customizable part.
 
 ### 7. Built-in: per-app volume
 Per-app volume mixer in the notch. Needs a research spike on Core Audio process taps (macOS 14.2+) versus a virtual audio driver. Keep it isolated from upstream files.

@@ -20,6 +20,7 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
     case battery
     case osd
     case notifications
+    case raycast
     case shortcuts
     case about
 
@@ -42,6 +43,7 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
         case .battery: "Battery"
         case .osd: "OSD"
         case .notifications: "Notifications"
+        case .raycast: "Raycast"
         case .shortcuts: "Shortcuts"
         case .about: "About"
         }
@@ -59,6 +61,7 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
         case .battery: .system("battery.100.bolt")
         case .osd: .system("dial.medium.fill")
         case .notifications: .system("bell.badge")
+        case .raycast: .system("command")
         case .shortcuts: .system("keyboard")
         case .about: .system("info.circle")
         }
@@ -111,6 +114,8 @@ struct SettingsView: View {
                     ShelfSettingsView()
                 case .mirror:
                     WebcamSettingsView(camera: camera)
+                case .raycast:
+                    RaycastSettingsView()
                 case .shortcuts:
                     ShortcutsSettingsView()
                 case .about:

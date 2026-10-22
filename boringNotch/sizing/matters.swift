@@ -11,7 +11,15 @@ import SwiftUI
 
 let shadowPadding: CGFloat = 20
 let openNotchSize: CGSize = .init(width: 640, height: 190)
-let windowSize: CGSize = .init(width: openNotchSize.width, height: openNotchSize.height + shadowPadding)
+/// PROTOTYPE (Raycast bar): the compact home adds a bar and expanded panels
+/// below the player, which need more height than the tabbed layout's 190.
+/// The window is transparent outside the notch shape, as it already is
+/// around the closed notch.
+let compactExpandedMaxHeight: CGFloat = 300
+let windowSize: CGSize = .init(
+    width: openNotchSize.width,
+    height: max(openNotchSize.height, compactExpandedMaxHeight) + shadowPadding
+)
 let cornerRadiusInsets: (opened: (top: CGFloat, bottom: CGFloat), closed: (top: CGFloat, bottom: CGFloat)) = (opened: (top: 19, bottom: 24), closed: (top: 6, bottom: 14))
 
 /// Compact mode uses a much rounder opened shape than the standard layout
