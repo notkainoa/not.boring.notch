@@ -9,7 +9,6 @@ import Defaults
 import SwiftUI
 
 struct AppearanceSettingsView: View {
-    @ObservedObject var coordinator = BoringViewCoordinator.shared
     @Default(.useCustomAccentColor) var useCustomAccentColor
     @Default(.customAccentColorData) var customAccentColorData
     @State private var customAccentColor: Color = .accentColor
@@ -141,7 +140,6 @@ struct AppearanceSettingsView: View {
 
     private var notchChromeSection: some View {
         Section {
-            Toggle("Always show tabs", isOn: $coordinator.alwaysShowTabs)
             Defaults.Toggle(key: .settingsIconInNotch) {
                 Text("Show settings icon in notch")
             }

@@ -31,6 +31,17 @@ enum StandardAnimations {
         return Animation.spring(response: 0.45 / Defaults[.animationSpeedMultiplier], dampingFraction: 1.0, blendDuration: 0)
     }
 
+    /// Spring for resizing the open notch between panels. Slightly
+    /// underdamped so the shape settles with a small physical overshoot
+    /// rather than easing to a stop (the feel Vorsaint has), and it keeps
+    /// the user's speed and animation settings.
+    static var panelMorph: Animation {
+        guard Defaults[.enableOpeningAnimation] else {
+            return Animation.linear(duration: 0)
+        }
+        return Animation.spring(response: 0.4 / Defaults[.animationSpeedMultiplier], dampingFraction: 0.78, blendDuration: 0)
+    }
+
     /// Bouncy spring for playful animations
     @available(macOS 14.0, *)
     static var bouncy: Animation {

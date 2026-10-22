@@ -35,6 +35,7 @@ final class NotchWindowManager {
     init(camera: CameraModel) {
         // Migrate saved heights before the initial view model reads notch sizing.
         LegacyNonNotchHeightMigration.applyIfNeeded()
+        RemovedPreferencesCleanup.apply()
         primaryViewModel = BoringViewModel(camera: camera)
     }
 
@@ -333,8 +334,8 @@ final class NotchWindowManager {
         guard Defaults[.displayMode] != .allDisplays || contexts[uuid]?.window != nil else { return }
 
         let screenFrame = screen.frame
-        let notchHeight = openNotchSize.height
-        let notchWidth = openNotchSize.width
+        let notchHeight = shelfDragRegionSize.height
+        let notchWidth = shelfDragRegionSize.width
 
         // Create notch region at the top-center of the screen where an open notch would occupy
         let notchRegion = CGRect(
@@ -364,15 +365,10 @@ final class NotchWindowManager {
         guard Defaults[.boringShelf] else { return }
         guard let uuid = screen.displayUUID else { return }
 
-        let coordinator = BoringViewCoordinator.shared
         if Defaults[.displayMode] == .allDisplays, let viewModel = contexts[uuid]?.viewModel {
-            if viewModel.open() {
-                coordinator.currentView = .shelf
-            }
+            viewModel.open(panel: .shelf)
         } else if Defaults[.displayMode] != .allDisplays, let windowScreen = primaryWindow?.screen, screen == windowScreen {
-            if primaryViewModel.open() {
-                coordinator.currentView = .shelf
-            }
+            primaryViewModel.open(panel: .shelf)
         }
     }
 

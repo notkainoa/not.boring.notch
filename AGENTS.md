@@ -14,10 +14,10 @@ not.boring.notch is a fork of [Boring Notch](https://github.com/TheBoredTeam/bor
 ## Project layout
 
 - `boringNotch/` is the app. Key places:
-  - `ContentView.swift`: the notch root view, with open/closed layout and compact-mode branching.
-  - `components/Notch/`: `CompactHomeView`, `NotchHomeView`, the SkyLight window, live-activity stack and power notice.
+  - `ContentView.swift`: the notch root view, with the closed layout, the open header and panel host, and hover/close handling.
+  - `components/Notch/`: `NotchPanel` (the panel registry and geometry, see `docs/PANELS.md`), `NotchPanelHeader`, `CompactHomeView` (the home panel), the SkyLight window, live-activity stack and power notice.
   - `components/LiveActivities/`, `components/OSD/`: the temporary alerts and HUD replacement.
-  - `components/Calendar/`, `Webcam/`, `Shelf/`, `Music/`, `Tabs/`: features.
+  - `components/Calendar/`, `Webcam/`, `Shelf/`, `Music/`: features, shown as panels.
   - `managers/NotchWindowManager.swift`: per-display windows and lock-screen (SkyLight) toggling.
   - `models/Constants.swift`: every `Defaults` key. Add settings here.
   - `sizing/matters.swift`: notch size computation. It has non-notch handling.

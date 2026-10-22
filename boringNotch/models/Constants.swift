@@ -433,13 +433,13 @@ extension Defaults.Keys {
     )
     static let nonNotchHeight = Key<CGFloat>("nonNotchHeight", default: 32)
     static let notchHeight = Key<CGFloat>("notchHeight", default: 32)
-    // static let openLastTabByDefault = Key<Bool>("openLastTabByDefault", default: false)
     static let showOnLockScreen = Key<Bool>("showOnLockScreen", default: false)
     static let hideFromScreenRecording = Key<Bool>("hideFromScreenRecording", default: false)
 
     // MARK: Appearance
-    // static let alwaysShowTabs = Key<Bool>("alwaysShowTabs", default: true)
-    static let showMirror = Key<Bool>("showMirror", default: false)
+    /// Shows the mirror panel's button. On by default: the camera only runs
+    /// while that panel is open, so it costs nothing until it's used.
+    static let showMirror = Key<Bool>("showMirror", default: true)
     static let isMirrored = Key<Bool>("isMirrored", default: true)
     static let mirrorShape = Key<MirrorShapeEnum>("mirrorShape", default: MirrorShapeEnum.rectangle)
     static let mirrorCameraID = Key<String?>("mirrorCameraID", default: nil)
@@ -450,7 +450,8 @@ extension Defaults.Keys {
 
     static let showNotHumanFace = Key<Bool>("showNotHumanFace", default: false)
     static let tileShowLabels = Key<Bool>("tileShowLabels", default: false)
-    static let showCalendar = Key<Bool>("showCalendar", default: false)
+    /// Shows the calendar panel's button.
+    static let showCalendar = Key<Bool>("showCalendar", default: true)
     static let hideCompletedReminders = Key<Bool>("hideCompletedReminders", default: true)
     static let sliderColor = Key<SliderColorEnum>(
         "sliderUseAlbumArtColor",
@@ -499,12 +500,6 @@ extension Defaults.Keys {
     // MARK: OSD
     static let osdReplacement = Key<Bool>(PreferenceCompatibility.migratedKeyName("osdReplacement", from: "hudReplacement"), default: false)
     static let inlineOSD = Key<Bool>(PreferenceCompatibility.migratedKeyName("inlineOSD", from: "inlineHUD"), default: false)
-
-    // MARK: Layout
-    /// Swaps the opened notch for a smaller, player-only layout: no tab
-    /// bar, calendar or mirror. Off by default so existing users keep the
-    /// layout they already have.
-    static let compactMode = Key<Bool>("compactMode", default: false)
 
     // MARK: Notifications
     /// Off by default: mirroring banners needs Accessibility access.

@@ -34,6 +34,7 @@ struct ContentView: View {
     @State private var isHoveringMusicArea = false
 
     @State private var haptics: Bool = false
+    @State private var hoverReconcileTask: Task<Void, Never>?
 
     @Namespace var albumArtNamespace
 
@@ -57,11 +58,7 @@ struct ContentView: View {
         return effectiveHeight / 38.0
     }
 
-    /// Compact mode gets a rounder opened shape (35 vs 19) — at its smaller
-    /// size the standard radius reads square rather than pill-like.
-    private var openedInsets: (top: CGFloat, bottom: CGFloat) {
-        Defaults[.compactMode] ? compactCornerRadiusInsets.opened : cornerRadiusInsets.opened
-    }
+    private var openedInsets: (top: CGFloat, bottom: CGFloat) { cornerRadiusInsets.opened }
 
     private var topCornerRadius: CGFloat {
         // If the notch is open, return the opened radius.
@@ -120,30 +117,28 @@ struct ContentView: View {
         return items
     }
 
-    /// A notification is a glance, not a workspace — it doesn't need the full
-    /// height the home/shelf tabs are sized for, and stretching to fill it
-    /// just surrounds two lines of text with empty black.
-    /// nil means "size to content".
+    /// A notification is a glance, not a workspace, so it gets a fixed
+    /// short height. nil means "size to content".
     ///
-    /// Compact mode must use nil: this frame bounds hit-testing as well as
-    /// layout, so any value shorter than the content leaves the transport
-    /// row outside the hover region — moving toward the buttons registered
-    /// as a hover-exit and closed the notch. The compact panel's height is
-    /// controlled by its own internal padding instead, which is the honest
-    /// lever anyway.
+    /// Panels must use nil: this frame also bounds hit-testing, and a value
+    /// shorter than the content once made reaching the home panel's
+    /// transport row a hover-exit. Panels size via NotchPanelSize instead.
     private var openNotchHeight: CGFloat? {
-        if notificationManager.activeNotification != nil { return 132 }
-        return Defaults[.compactMode] ? nil : vm.notchSize.height
+        notificationManager.activeNotification != nil ? 132 : nil
     }
 
-    /// Compact mode drops the tab bar along with the tabs it switches
-    /// between — there's only the player to show, so a switcher would have
-    /// nothing to switch to. Also what keeps the panel narrow, since the
-    /// header spans the full notch width.
+    /// The panel header replaces the old tab bar. Not over a notification:
+    /// that's a glance with its own reply UI.
     private var showsHeader: Bool {
-        vm.notchState == .open
-            && notificationManager.activeNotification == nil
-            && !Defaults[.compactMode]
+        vm.notchState == .open && notificationManager.activeNotification == nil
+    }
+
+    private var panelHeaderHeight: CGFloat {
+        NotchPanelLayout.headerHeight(hasNotch: vm.hasNotch, closedNotchHeight: displayClosedNotchHeight)
+    }
+
+    private var currentPanelSize: NotchPanelSize {
+        NotchPanelLayout.contentSize(for: vm.currentPanel, vm: vm, headerHeight: panelHeaderHeight)
     }
 
     /// The activity currently on top of the stack — what the chin has to be
@@ -280,6 +275,12 @@ struct ContentView: View {
                     )
                     // Removed conditional bottom padding when using custom 0 notch to keep layout stable
                     .opacity((isNotchHeightZero && vm.notchState == .closed) ? 0.01 : 1)
+                    // Layout size, not the animating one: it jumps to the
+                    // target at the start of a morph, which is what
+                    // hit-testing wants.
+                    .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
+                        vm.notchFrameSize = size
+                    }
 
                 mainLayout
                     // alignment: .top matters here — without it this frame
@@ -300,6 +301,11 @@ struct ContentView: View {
                             // at once the innermost animation wins, so the
                             // open/close springs below keep precedence.
                             .animation(.smooth(duration: 0.3), value: closedNotchContent)
+                            // Also outermost so open/close keeps precedence.
+                            // Panel switches already run inside panelMorph;
+                            // this covers size changes that don't, such as
+                            // the mirror learning its camera's aspect ratio.
+                            .animation(StandardAnimations.panelMorph, value: currentPanelSize)
                     }
                     .contentShape(Rectangle())
                     .onHover { hovering in
@@ -349,6 +355,11 @@ struct ContentView: View {
                     .onChange(of: vm.isPopoverActive) { _, _ in
                         scheduleCloseIfNotHovering(overNotch: vm)
                     }
+                    // Every panel change, whether from the header, a drag
+                    // or a panel being turned off in Settings.
+                    .onChange(of: vm.activePanel) { _, _ in
+                        reconcileHoverAfterResize()
+                    }
                     .sensoryFeedback(.alignment, trigger: haptics)
                     .contextMenu {
                         Button("Settings") {
@@ -391,9 +402,15 @@ struct ContentView: View {
             anyDropDebounceTask?.cancel()
 
             if isTargeted {
-                if Defaults[.boringShelf] && vm.notchState == .closed {
-                    if doOpen() {
-                        coordinator.currentView = .shelf
+                // Opens on the shelf, or switches to it if the notch is
+                // already open on another panel.
+                if Defaults[.boringShelf] {
+                    if vm.notchState == .closed {
+                        doOpen(panel: .shelf)
+                    } else {
+                        withAnimation(StandardAnimations.panelMorph) {
+                            vm.showPanel(.shelf)
+                        }
                     }
                 }
                 return
@@ -463,14 +480,21 @@ struct ContentView: View {
                       } else if !coordinator.expandingView.show && vm.notchState == .closed && (!musicManager.isPlaying && musicManager.isPlayerIdle) && Defaults[.showNotHumanFace] && !vm.hideOnClosed {
                           BoringFaceAnimation()
                        } else if showsHeader {
-                           // No tab bar over a notification: it's a glance,
-                           // not a place to switch between home and shelf —
-                           // and the header spans the full notch width,
-                           // which is what was stretching the whole panel
-                           // out around a short message.
-                           BoringHeader()
-                               .frame(height: max(38, displayClosedNotchHeight))
-                               .opacity(gestureProgress != 0 ? 1.0 - min(abs(gestureProgress) * 0.1, 0.3) : 1.0)
+                           NotchPanelHeader(
+                               panels: NotchPanels.featurePanels(for: vm),
+                               activePanel: vm.currentPanel.id,
+                               cutoutWidth: vm.hasNotch ? vm.closedNotchSize.width : 0,
+                               onSelect: selectPanel
+                           )
+                           // Spans the panel's width, reaching slightly into
+                           // the side padding where the top corners have
+                           // already curved in.
+                           .frame(
+                               width: currentPanelSize.width + 2 * NotchPanelHeader.edgeOverhang,
+                               height: panelHeaderHeight
+                           )
+                           .padding(.horizontal, -NotchPanelHeader.edgeOverhang)
+                           .opacity(gestureProgress != 0 ? 1.0 - min(abs(gestureProgress) * 0.1, 0.3) : 1.0)
                        }
                         // New case to enable compact notch on external displays
                         else if !vm.hasNotch {
@@ -525,42 +549,21 @@ struct ContentView: View {
             if vm.notchState == .open {
                 VStack {
                     // An open notch with a live notification is showing the
-                    // reply UI — the usual tabs can wait until it's dismissed.
+                    // reply UI; the panels can wait until it's dismissed.
                     if let notification = notificationManager.activeNotification {
                         NotificationExpandedView(notification: notification)
                             .id(notification.id)
-                    } else if Defaults[.compactMode] {
-                        // Player only — no tab switching, so currentView is
-                        // ignored here rather than offering a shelf the
-                        // compact layout has no room (or tab bar) for.
-                        // 336 = Atoll's 420 base less 20%, which also lands
-                        // within a few points of their Dynamic Island width
-                        // (340) — the tighter of their two compact sizes.
-                        CompactHomeView(
-                            albumArtNamespace: albumArtNamespace,
-                            horizontalMediaGestureFeedback: horizontalMediaGestureFeedback
-                        )
-                        .frame(width: 336)
-                        .onHover { hovering in
-                            isHoveringMusicArea = hovering
-                        }
-                        .onDisappear {
-                            isHoveringMusicArea = false
-                        }
                     } else {
-                        switch coordinator.currentView {
-                        case .home:
-                            NotchHomeView(
+                        NotchPanelHost(
+                            panel: vm.currentPanel,
+                            size: currentPanelSize,
+                            context: NotchPanelContext(
+                                vm: vm,
                                 albumArtNamespace: albumArtNamespace,
                                 horizontalMediaGestureFeedback: horizontalMediaGestureFeedback,
                                 isHoveringMusicArea: $isHoveringMusicArea
                             )
-                        case .shelf:
-                            ShelfView(
-                                dropInteraction: vm.dropInteraction,
-                                animation: vm.animation
-                            )
-                        }
+                        )
                     }
                 }
                 .transition(
@@ -792,12 +795,40 @@ struct ContentView: View {
 
 extension ContentView {
     @discardableResult
-    private func doOpen() -> Bool {
+    private func doOpen(panel: NotchPanelID? = nil) -> Bool {
         var didOpen = false
         withAnimation(animationSpring) {
-            didOpen = vm.open()
+            didOpen = vm.open(panel: panel)
         }
         return didOpen
+    }
+
+    // MARK: - Panels
+
+    /// Header button action. The active panel's button goes back to home.
+    private func selectPanel(_ id: NotchPanelID) {
+        let target: NotchPanelID = vm.currentPanel.id == id ? .home : id
+        withAnimation(StandardAnimations.panelMorph) {
+            vm.showPanel(target)
+        }
+    }
+
+    /// A panel change resizes the hover region under a still pointer, and
+    /// AppKit doesn't reliably send a hover exit for that. Once layout lands,
+    /// run the real pointer position through handleHover (usual exit grace
+    /// and close rules outside; inside cancels a mid-resize exit).
+    private func reconcileHoverAfterResize() {
+        hoverReconcileTask?.cancel()
+        hoverReconcileTask = Task { @MainActor in
+            // A couple of frames for layout to land and report its size.
+            try? await Task.sleep(for: .milliseconds(80))
+            guard !Task.isCancelled, vm.notchState == .open else { return }
+            if vm.isMouseHovering() {
+                handleHover(true)
+            } else if isHovering {
+                handleHover(false)
+            }
+        }
     }
 
     // MARK: - Hover Management
@@ -1016,10 +1047,7 @@ extension ContentView {
             return coordinator.musicLiveActivityEnabled && (musicManager.isPlaying || !musicManager.isPlayerIdle)
 
         case .open:
-            if Defaults[.compactMode] {
-                return !musicManager.isPlayerIdle && isHoveringMusicArea
-            }
-            return coordinator.currentView == .home && !musicManager.isPlayerIdle && isHoveringMusicArea
+            return vm.currentPanel.id == .home && !musicManager.isPlayerIdle && isHoveringMusicArea
         }
     }
 }
@@ -1068,5 +1096,5 @@ struct GeneralDropTargetDelegate: DropDelegate {
     vm.open()
     return ContentView()
         .environmentObject(vm)
-        .frame(width: vm.notchSize.width, height: vm.notchSize.height)
+        .frame(width: windowSize.width, height: windowSize.height)
 }
