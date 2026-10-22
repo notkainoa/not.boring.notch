@@ -369,6 +369,10 @@ struct ContentView: View {
                             }
                         }
                         .keyboardShortcut(KeyEquivalent(","), modifiers: .command)
+                        Button("Quit") {
+                            NSApp.terminate(nil)
+                        }
+                        .keyboardShortcut(KeyEquivalent("q"), modifiers: .command)
                         //                    Button("Edit") { // Doesnt work....
                         //                        let dn = DynamicNotch(content: EditPanelView())
                         //                        dn.toggle()
