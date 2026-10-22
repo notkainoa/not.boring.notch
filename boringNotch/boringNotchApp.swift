@@ -80,7 +80,7 @@ struct DynamicNotchApp: App {
                 }
                 NSLog("Failed to migrate legacy Boring Notch app bundle at %@", sourceURL.path)
             }
-            updaterController.startUpdater()
+            // Auto-update is disabled until the fork has its own feed and signing key (see VISION.md, "Release workflow").
         }
     }
 
@@ -116,7 +116,7 @@ final class BoringSparkleUpdaterDelegate: NSObject, SPUUpdaterDelegate {
     }
 
     @objc func feedURLString(for updater: SPUUpdater) -> String? {
-        Defaults[.updateChannel].feedURLString
+        nil // No update feed yet; upstream's feed must not be used.
     }
 
     @objc func allowedChannels(for updater: SPUUpdater) -> Set<String> {
