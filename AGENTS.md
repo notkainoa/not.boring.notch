@@ -29,7 +29,8 @@ not.boring.notch is a fork of [Boring Notch](https://github.com/TheBoredTeam/bor
 
 - We're not tracking upstream, so refactor and delete freely. Remove code for features we cut (non-compact layout, tabs) instead of leaving it dormant.
 - New user-facing strings go in `Localizable.xcstrings`.
-- Upstream's Crowdin/localization pipeline is theirs. Don't depend on it. Check `crowdin.yml` and the workflows before relying on or pushing CI, and disable workflows that target upstream infrastructure (release signing, appcast, updater) if they would run in our fork.
+- Upstream's release, nightly, Crowdin, Pages and fork-PR-policy workflows were deleted (they depended on upstream's secrets and infrastructure). What remains in `.github/` is CI (build and test), CodeQL, SwiftLint and Dependabot, all targeting `main`. Auto-update (Sparkle) is disabled. The plan for releasing is in `VISION.md` item 9.
+- Translations are no longer synced from Crowdin. Edit `Localizable.xcstrings` directly.
 - New settings are `Defaults` keys in `Constants.swift` with a settings-UI entry.
 - Keep the notch cheap at rest (CPU, memory, no polling). Upstream has fixed several hot-path regressions.
 - The app must work on notched and non-notched displays (MacBook Air, Mac mini, external monitors). Design for both. See "Building and testing" for how testing works.
