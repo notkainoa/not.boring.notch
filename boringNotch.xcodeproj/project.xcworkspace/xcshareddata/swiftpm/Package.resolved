@@ -65,15 +65,6 @@
       }
     },
     {
-      "identity" : "skylightwindow",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/Lakr233/SkyLightWindow",
-      "state" : {
-        "revision" : "b7bd99f62a0673a99bed4bfd31098ca1dcdd10eb",
-        "version" : "1.0.0"
-      }
-    },
-    {
       "identity" : "sparkle",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/sparkle-project/Sparkle",

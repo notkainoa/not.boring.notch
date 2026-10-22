@@ -28,7 +28,6 @@ final class NotchWindowManager {
     let primaryViewModel: BoringViewModel
     private var primaryDragDetector: DragDetector?
 
-    private(set) var isScreenLocked: Bool = false
     private var windowScreenDidChangeObserver: Any?
     private var previousScreens: [NSScreen]?
 
@@ -50,53 +49,6 @@ final class NotchWindowManager {
 
     var window: NSWindow? { primaryWindow }
 
-    // MARK: - Screen lock / unlock
-
-    func screenLocked() {
-        isScreenLocked = true
-        if !Defaults[.showOnLockScreen] {
-            cleanupWindows()
-        } else {
-            enableSkyLightOnAllWindows()
-        }
-    }
-
-    func screenUnlocked() {
-        isScreenLocked = false
-        if !Defaults[.showOnLockScreen] {
-            adjustWindowPosition(changeAlpha: true)
-            setupDragDetectors()
-        } else {
-            disableSkyLightOnAllWindows()
-        }
-    }
-
-    private func enableSkyLightOnAllWindows() {
-        if Defaults[.displayMode] == .allDisplays {
-            contexts.values.forEach { context in
-                (context.window as? BoringNotchSkyLightWindow)?.enableSkyLight()
-            }
-        } else {
-            (primaryWindow as? BoringNotchSkyLightWindow)?.enableSkyLight()
-        }
-    }
-
-    private func disableSkyLightOnAllWindows() {
-        // Delay disabling SkyLight to avoid flicker during unlock transition
-        Task {
-            try? await Task.sleep(for: .milliseconds(150))
-            await MainActor.run {
-                if Defaults[.displayMode] == .allDisplays {
-                    contexts.values.forEach { context in
-                        (context.window as? BoringNotchSkyLightWindow)?.disableSkyLight()
-                    }
-                } else {
-                    (primaryWindow as? BoringNotchSkyLightWindow)?.disableSkyLight()
-                }
-            }
-        }
-    }
-
     // MARK: - Window lifecycle
 
     func cleanupWindows(shouldInvert: Bool = false) {
@@ -105,19 +57,13 @@ final class NotchWindowManager {
         if shouldCleanupMulti {
             for (uuid, context) in contexts {
                 context.window?.close()
-                if let window = context.window {
-                    NotchSpaceManager.shared.notchSpace.windows.remove(window)
-                }
                 context.dragDetector?.stopMonitoring()
                 contexts.removeValue(forKey: uuid)
             }
         } else {
             primaryDragDetector?.stopMonitoring()
             primaryDragDetector = nil
-            if let window = primaryWindow {
-                window.close()
-                NotchSpaceManager.shared.notchSpace.windows.remove(window)
-            }
+            primaryWindow?.close()
             if let obs = windowScreenDidChangeObserver {
                 NotificationCenter.default.removeObserver(obs)
                 windowScreenDidChangeObserver = nil
@@ -133,14 +79,7 @@ final class NotchWindowManager {
         let rect = NSRect(x: 0, y: 0, width: windowSize.width, height: windowSize.height)
         let styleMask: NSWindow.StyleMask = [.borderless, .nonactivatingPanel, .utilityWindow, .hudWindow]
 
-        let window = BoringNotchSkyLightWindow(contentRect: rect, styleMask: styleMask, backing: .buffered, defer: false)
-
-        // Enable SkyLight only when screen is locked
-        if isScreenLocked {
-            window.enableSkyLight()
-        } else {
-            window.disableSkyLight()
-        }
+        let window = BoringNotchWindow(contentRect: rect, styleMask: styleMask, backing: .buffered, defer: false)
 
         window.contentView = NSHostingView(
             rootView: ContentView()
@@ -148,7 +87,6 @@ final class NotchWindowManager {
         )
 
         window.orderFrontRegardless()
-        NotchSpaceManager.shared.notchSpace.windows.insert(window)
 
         // Observe when the window's screen changes so we can update drag detectors.
         // Remove any previous observer first — recreating windows used to
@@ -188,10 +126,7 @@ final class NotchWindowManager {
 
             // Remove windows for screens that no longer exist
             for uuid in contexts.keys where !currentScreenUUIDs.contains(uuid) {
-                if let window = contexts[uuid]?.window {
-                    window.close()
-                    NotchSpaceManager.shared.notchSpace.windows.remove(window)
-                }
+                contexts[uuid]?.window?.close()
                 contexts[uuid]?.dragDetector?.stopMonitoring()
                 contexts.removeValue(forKey: uuid)
             }

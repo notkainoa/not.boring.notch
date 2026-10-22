@@ -15,10 +15,10 @@ not.boring.notch is a fork of [Boring Notch](https://github.com/TheBoredTeam/bor
 
 - `boringNotch/` is the app. Key places:
   - `ContentView.swift`: the notch root view, with open/closed layout and compact-mode branching.
-  - `components/Notch/`: `CompactHomeView`, `NotchHomeView`, the SkyLight window, live-activity stack and power notice.
+  - `components/Notch/`: `CompactHomeView`, `NotchHomeView`, the notch window, live-activity stack and power notice.
   - `components/LiveActivities/`, `components/OSD/`: the temporary alerts and HUD replacement.
   - `components/Calendar/`, `Webcam/`, `Shelf/`, `Music/`, `Tabs/`: features.
-  - `managers/NotchWindowManager.swift`: per-display windows and lock-screen (SkyLight) toggling.
+  - `managers/NotchWindowManager.swift`: per-display notch windows.
   - `models/Constants.swift`: every `Defaults` key. Add settings here.
   - `sizing/matters.swift`: notch size computation. It has non-notch handling.
 - `BoringNotchXPCHelper/`: XPC helper for sandbox-restricted work such as media keys and HUD interception.
@@ -35,7 +35,7 @@ not.boring.notch is a fork of [Boring Notch](https://github.com/TheBoredTeam/bor
 - Keep the notch cheap at rest (CPU, memory, no polling). Upstream has fixed several hot-path regressions.
 - The app must work on notched and non-notched displays (MacBook Air, Mac mini, external monitors). Design for both. See "Building and testing" for how testing works.
 - Deployment target is macOS 14.0, but check the target before using newer APIs.
-- Mark anything that depends on Apple private API (SkyLight, MediaRemote) clearly. It is the likeliest thing to break on a new macOS release.
+- Mark anything that depends on Apple private API (MediaRemote) clearly. It is the likeliest thing to break on a new macOS release.
 
 ## Building and testing
 
@@ -57,7 +57,7 @@ scripts/dev.sh kill     # stop this checkout's copy
 
 - **Agents never launch the app.** Several agents share this Mac and the user may be using it. Don't run `scripts/dev.sh run`, `open` the built app, or drive the desktop. Verify with `scripts/dev.sh build` (or the `xcodebuild` command in that script), unit tests, and code reasoning only.
 - `scripts/dev.sh build` is the compile check. Report its result honestly, including environment failures.
-- Be explicit about what is unverified at runtime. Lock screen, Bluetooth hardware, HUD interception, notch animation feel and non-notch displays can't be confirmed by building.
+- Be explicit about what is unverified at runtime. Bluetooth hardware, HUD interception, notch animation feel and non-notch displays can't be confirmed by building.
 
 ### When you finish, hand the user a test plan
 
@@ -65,10 +65,14 @@ End your final report with a **"How to test"** section the user can follow, cont
 1. The exact commands, with the absolute worktree path, for example `cd ~/.t3/worktrees/not.boring.notch/<worktree> && scripts/dev.sh`.
 2. A reminder to quit the installed Boring Notch first if it's running.
 3. Which permissions the feature needs (Accessibility, Bluetooth, Calendar, Camera, and so on), and that they may need re-granting after a rebuild.
-4. A short checklist of what to try and what a correct result looks like, including edge cases (non-notch display, external monitor, lock screen, no music playing, etc., as relevant).
+4. A short checklist of what to try and what a correct result looks like, including edge cases (non-notch display, external monitor, no music playing, etc., as relevant).
 5. Known gaps: what you couldn't verify and where you'd expect problems.
 
 The user's test devices are a non-notch MacBook Air M1 and, later, an external monitor.
+
+## Not goals
+
+- No lock-screen support. The notch must not appear or do anything on the lock screen.
 
 ## Licensing
 

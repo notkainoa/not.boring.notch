@@ -135,8 +135,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var closeNotchTask: Task<Void, Never>?
     private lazy var windowManager = NotchWindowManager(camera: camera)
     private var onboardingWindowController: NSWindowController?
-    private var screenLockedObserver: Any?
-    private var screenUnlockedObserver: Any?
     private var observers: [Any] = []
     private var activeDisplayObserver: NSObjectProtocol?
     private var displayModeTask: Task<Void, Never>?
@@ -168,14 +166,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ShelfStateViewModel.shared.flushSync()
 
         NotificationCenter.default.removeObserver(self)
-        if let observer = screenLockedObserver {
-            DistributedNotificationCenter.default().removeObserver(observer)
-            screenLockedObserver = nil
-        }
-        if let observer = screenUnlockedObserver {
-            DistributedNotificationCenter.default().removeObserver(observer)
-            screenUnlockedObserver = nil
-        }
         MainActor.assumeIsolated {
             MusicManager.shared.destroy()
             windowManager.cleanup()
@@ -192,17 +182,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         MainActor.assumeIsolated { setActiveDisplayObserver(enabled: false, reposition: false) }
     }
 
-    @MainActor
-    func onScreenLocked(_ notification: Notification) {
-        windowManager.screenLocked()
-    }
-
-    @MainActor
-    func onScreenUnlocked(_ notification: Notification) {
-        windowManager.screenUnlocked()
-    }
-
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Lock-screen support was removed; drop the stale setting.
+        UserDefaults.standard.removeObject(forKey: "showOnLockScreen")
         SettingsWindowController.shared.setCamera(camera)
         migrateDisplayModeIfNeeded()
 
@@ -238,23 +220,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.windowManager.setupDragDetectors()
             }
         })
-
-        // Use closure-based observers for DistributedNotificationCenter and keep tokens for removal
-        screenLockedObserver = DistributedNotificationCenter.default().addObserver(
-            forName: NSNotification.Name(rawValue: "com.apple.screenIsLocked"),
-            object: nil, queue: .main) { [weak self] notification in
-                Task { @MainActor in
-                    self?.onScreenLocked(notification)
-                }
-        }
-
-        screenUnlockedObserver = DistributedNotificationCenter.default().addObserver(
-            forName: NSNotification.Name(rawValue: "com.apple.screenIsUnlocked"),
-            object: nil, queue: .main) { [weak self] notification in
-                Task { @MainActor in
-                    self?.onScreenUnlocked(notification)
-                }
-        }
 
         KeyboardShortcuts.onKeyDown(for: .toggleSneakPeek) { [weak self] in
             guard let self = self else { return }
