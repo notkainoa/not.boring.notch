@@ -28,7 +28,9 @@ final class NotchWindowManager {
     let primaryViewModel: BoringViewModel
     private var primaryDragDetector: DragDetector?
 
-    private(set) var isScreenLocked: Bool = false
+    var isScreenLocked: Bool { BoringViewCoordinator.shared.isScreenLocked }
+    /// Post-unlock SkyLight teardown; cancelled if the screen locks again first.
+    private var unlockTask: Task<Void, Never>?
     private var windowScreenDidChangeObserver: Any?
     private var previousScreens: [NSScreen]?
 
@@ -53,48 +55,151 @@ final class NotchWindowManager {
     // MARK: - Screen lock / unlock
 
     func screenLocked() {
-        isScreenLocked = true
+        unlockTask?.cancel()
+        unlockTask = nil
+        BoringViewCoordinator.shared.setScreenLocked(true)
+
+        // Nothing opens over the lock screen (BoringViewModel.open refuses),
+        // so close what's open and stop all pointer and drag input.
+        ([primaryViewModel] + contexts.values.map(\.viewModel)).forEach { $0.close() }
+        cleanupDragDetectors()
+
         if !Defaults[.showOnLockScreen] {
             cleanupWindows()
         } else {
+            notchWindows.forEach { $0.ignoresMouseEvents = true }
             enableSkyLightOnAllWindows()
         }
     }
 
     func screenUnlocked() {
-        isScreenLocked = false
+        BoringViewCoordinator.shared.setScreenLocked(false)
         if !Defaults[.showOnLockScreen] {
             adjustWindowPosition(changeAlpha: true)
-            setupDragDetectors()
         } else {
-            disableSkyLightOnAllWindows()
+            notchWindows.forEach { $0.ignoresMouseEvents = false }
+            leaveLockScreen()
         }
+        setupDragDetectors()
+    }
+
+    /// Re-checks the real lock state, for launch and wake: the lock
+    /// notifications only report changes, and a missed one would leave the
+    /// notch stuck locked or on the lock screen.
+    func resyncLockState() {
+        guard let locked = SessionLockState.isScreenLocked, locked != isScreenLocked else { return }
+        if locked {
+            screenLocked()
+        } else {
+            screenUnlocked()
+        }
+    }
+
+    /// Every notch window this manager owns. Only one display mode's windows
+    /// exist at a time (cleanupWindows(shouldInvert:) drops the other set).
+    private var notchWindows: [BoringNotchSkyLightWindow] {
+        ([primaryWindow] + contexts.values.map(\.window))
+            .compactMap { $0 as? BoringNotchSkyLightWindow }
     }
 
     private func enableSkyLightOnAllWindows() {
-        if Defaults[.displayMode] == .allDisplays {
-            contexts.values.forEach { context in
-                (context.window as? BoringNotchSkyLightWindow)?.enableSkyLight()
-            }
-        } else {
-            (primaryWindow as? BoringNotchSkyLightWindow)?.enableSkyLight()
+        notchWindows.forEach { $0.enableSkyLight() }
+    }
+
+    /// Moves the windows off the lock screen, then replaces every window that
+    /// was handed to SkyLight: undelegating leaves server-side state behind
+    /// that makes the transparent margins swallow desktop clicks near the
+    /// notch until the window is recreated. See docs/lock-screen.md.
+    private func leaveLockScreen() {
+        unlockTask?.cancel()
+        unlockTask = Task { @MainActor [weak self] in
+            // Delay disabling SkyLight to avoid flicker during unlock transition
+            try? await Task.sleep(for: .milliseconds(150))
+            guard let self, !Task.isCancelled, !self.isScreenLocked else { return }
+            self.notchWindows.forEach { $0.disableSkyLight() }
+
+            try? await Task.sleep(for: .milliseconds(150))
+            guard !Task.isCancelled, !self.isScreenLocked else { return }
+            self.replaceSkyLightDelegatedWindows()
+            self.unlockTask = nil
         }
     }
 
-    private func disableSkyLightOnAllWindows() {
-        // Delay disabling SkyLight to avoid flicker during unlock transition
-        Task {
-            try? await Task.sleep(for: .milliseconds(150))
-            await MainActor.run {
-                if Defaults[.displayMode] == .allDisplays {
-                    contexts.values.forEach { context in
-                        (context.window as? BoringNotchSkyLightWindow)?.disableSkyLight()
-                    }
-                } else {
-                    (primaryWindow as? BoringNotchSkyLightWindow)?.disableSkyLight()
-                }
-            }
+    // MARK: - SkyLight window replacement
+    //
+    // Adapted from upstream PR #1346 (TemujinCalidius). The live NSHostingView
+    // is moved to the new window rather than rebuilt: a fresh hosting view
+    // shows a blank first frame and restarts the spectrum animation and the
+    // album-art matched geometry. A snapshot of the old pixels sits under the
+    // moved view while its layer re-hosts, so the notch is never blank.
+
+    private func replaceSkyLightDelegatedWindows() {
+        if let old = primaryWindow as? BoringNotchSkyLightWindow, old.wasDelegatedToSkyLight,
+           let replacement = replaceWindow(old) {
+            primaryWindow = replacement
         }
+        for (uuid, context) in contexts {
+            guard let old = context.window as? BoringNotchSkyLightWindow, old.wasDelegatedToSkyLight,
+                  let replacement = replaceWindow(old) else { continue }
+            contexts[uuid]?.window = replacement
+        }
+    }
+
+    private func replaceWindow(_ old: BoringNotchSkyLightWindow) -> NSWindow? {
+        guard !isScreenLocked, let liveView = old.contentView else { return nil }
+
+        let snapshot = Self.snapshot(of: liveView)
+        let window = makeNotchWindow()
+        window.setFrame(old.frame, display: false)
+        window.alphaValue = old.alphaValue
+
+        let container = NotchPassthroughContainerView(frame: NSRect(origin: .zero, size: old.frame.size))
+        container.autoresizesSubviews = true
+        snapshot.frame = container.bounds
+        container.addSubview(snapshot)
+        window.contentView = container
+
+        // Show the frozen snapshot above the old window before touching the live view.
+        window.orderFrontRegardless()
+        NotchSpaceManager.shared.notchSpace.windows.insert(window)
+        window.displayIfNeeded()
+        CATransaction.flush()
+
+        // Move the live view straight across (never window-less) and stack
+        // it above the snapshot. The old window goes blank behind the snapshot.
+        liveView.frame = container.bounds
+        liveView.autoresizingMask = [.width, .height]
+        container.addSubview(liveView, positioned: .above, relativeTo: snapshot)
+        liveView.layoutSubtreeIfNeeded()
+        CATransaction.flush()
+
+        observeScreenChanges(of: window)
+
+        // One run-loop turn later the live view has drawn: retire the old
+        // window and drop the snapshot together.
+        DispatchQueue.main.async {
+            old.orderOut(nil)
+            NotchSpaceManager.shared.notchSpace.windows.remove(old)
+            old.close()
+            snapshot.removeFromSuperview()
+        }
+        return window
+    }
+
+    /// Static bitmap of the view's current pixels (in-process, so unaffected
+    /// by `sharingType = .none`).
+    private static func snapshot(of view: NSView) -> NSImageView {
+        let bounds = view.bounds
+        let imageView = NSImageView(frame: bounds)
+        imageView.imageScaling = .scaleNone
+        imageView.autoresizingMask = [.width, .height]
+        if bounds.width > 0, bounds.height > 0, let rep = view.bitmapImageRepForCachingDisplay(in: bounds) {
+            view.cacheDisplay(in: bounds, to: rep)
+            let image = NSImage(size: bounds.size)
+            image.addRepresentation(rep)
+            imageView.image = image
+        }
+        return imageView
     }
 
     // MARK: - Window lifecycle
@@ -129,7 +234,9 @@ final class NotchWindowManager {
         BoringViewCoordinator.shared.applyOSDSources()
     }
 
-    private func createBoringNotchWindow(for screen: NSScreen, with viewModel: BoringViewModel) -> NSWindow {
+    /// A notch window with no content, on or off the lock screen to match the
+    /// current lock state.
+    private func makeNotchWindow() -> BoringNotchSkyLightWindow {
         let rect = NSRect(x: 0, y: 0, width: windowSize.width, height: windowSize.height)
         let styleMask: NSWindow.StyleMask = [.borderless, .nonactivatingPanel, .utilityWindow, .hudWindow]
 
@@ -141,6 +248,12 @@ final class NotchWindowManager {
         } else {
             window.disableSkyLight()
         }
+        window.ignoresMouseEvents = isScreenLocked
+        return window
+    }
+
+    private func createBoringNotchWindow(for screen: NSScreen, with viewModel: BoringViewModel) -> NSWindow {
+        let window = makeNotchWindow()
 
         window.contentView = NSHostingView(
             rootView: ContentView()
@@ -149,7 +262,11 @@ final class NotchWindowManager {
 
         window.orderFrontRegardless()
         NotchSpaceManager.shared.notchSpace.windows.insert(window)
+        observeScreenChanges(of: window)
+        return window
+    }
 
+    private func observeScreenChanges(of window: NSWindow) {
         // Observe when the window's screen changes so we can update drag detectors.
         // Remove any previous observer first — recreating windows used to
         // overwrite the token and leak the earlier observer each cycle.
@@ -164,7 +281,6 @@ final class NotchWindowManager {
                     self?.setupDragDetectors()
                 }
         }
-        return window
     }
 
     private func positionWindow(_ window: NSWindow, on screen: NSScreen, changeAlpha: Bool = false) {
@@ -393,6 +509,7 @@ final class NotchWindowManager {
 
         setupDragDetectors()
         noteInitialScreens()
+        resyncLockState()
     }
 
     func togglePopover(_ sender: Any?) {
@@ -406,5 +523,15 @@ final class NotchWindowManager {
     func cleanup() {
         cleanupDragDetectors()
         cleanupWindows()
+    }
+}
+
+/// Content view for a replacement notch window. It never claims a click for
+/// itself, so the transparent margins pass clicks through exactly as when the
+/// hosting view is the window's content view.
+private final class NotchPassthroughContainerView: NSView {
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let hit = super.hitTest(point)
+        return hit === self ? nil : hit
     }
 }

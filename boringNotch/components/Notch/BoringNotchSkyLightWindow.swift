@@ -10,6 +10,17 @@ import SkyLightWindow
 import Defaults
 import Combine
 
+// MARK: - PRIVATE API (SkyLight)
+//
+// `SkyLightOperator` (Swift package SkyLightWindow) moves a window into a
+// SkyLight space at level 400, which is drawn above the lock screen. Its
+// `delegateWindow` uses SLSSpaceAddWindowsAndRemoveFromSpaces with flag 7,
+// which also removes the window from our CGS notch space. Undelegating only
+// takes it out of the SkyLight space, and the window keeps server-side state
+// that makes its transparent margins swallow desktop clicks afterwards, so
+// NotchWindowManager replaces any delegated window after unlock. See
+// docs/lock-screen.md.
+
 extension SkyLightOperator {
     func undelegateWindow(_ window: NSWindow) {
         typealias F_SLSRemoveWindowsFromSpaces = @convention(c) (Int32, CFArray, CFArray) -> Int32
@@ -33,6 +44,10 @@ extension SkyLightOperator {
 
 class BoringNotchSkyLightWindow: NSPanel {
     private var isSkyLightEnabled: Bool = false
+    /// Set the first time this window is handed to SkyLight and never cleared:
+    /// undelegating doesn't fully undo it, so the window manager replaces
+    /// windows with this flag set once the screen is unlocked.
+    private(set) var wasDelegatedToSkyLight = false
 
     override init(
         contentRect: NSRect,
@@ -123,16 +138,21 @@ class BoringNotchSkyLightWindow: NSPanel {
         }
     }
 
+    /// PRIVATE API (SkyLight): draws the window above the lock screen.
     func enableSkyLight() {
         if !isSkyLightEnabled {
             SkyLightOperator.shared.delegateWindow(self)
             isSkyLightEnabled = true
+            wasDelegatedToSkyLight = true
         }
     }
 
+    /// PRIVATE API (SkyLight + CGS): takes the window out of the SkyLight space
+    /// and puts it back in the notch space that delegation evicted it from.
     func disableSkyLight() {
         if isSkyLightEnabled {
             SkyLightOperator.shared.undelegateWindow(self)
+            NotchSpaceManager.shared.notchSpace.reassert([self])
             isSkyLightEnabled = false
         }
     }

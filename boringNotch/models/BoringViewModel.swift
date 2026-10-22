@@ -175,6 +175,10 @@ final class BoringViewModel: NSObject, ObservableObject {
     @discardableResult
     func open() -> Bool {
         guard !coordinator.firstLaunch, notchState != .open else { return false }
+        // Never open over the lock screen: the open views (home with calendar
+        // and mirror, shelf, notification reply) aren't policy-filtered yet.
+        // Covers hover, tap, gestures, the shortcut and drags.
+        guard !coordinator.isScreenLocked else { return false }
 
         self.notchSize = openNotchSize
         self.notchState = .open

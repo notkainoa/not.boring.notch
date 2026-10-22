@@ -137,6 +137,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var onboardingWindowController: NSWindowController?
     private var screenLockedObserver: Any?
     private var screenUnlockedObserver: Any?
+    private var workspaceObservers: [Any] = []
     private var observers: [Any] = []
     private var activeDisplayObserver: NSObjectProtocol?
     private var displayModeTask: Task<Void, Never>?
@@ -176,6 +177,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DistributedNotificationCenter.default().removeObserver(observer)
             screenUnlockedObserver = nil
         }
+        workspaceObservers.forEach { NSWorkspace.shared.notificationCenter.removeObserver($0) }
+        workspaceObservers.removeAll()
         MainActor.assumeIsolated {
             MusicManager.shared.destroy()
             windowManager.cleanup()
@@ -254,6 +257,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 Task { @MainActor in
                     self?.onScreenUnlocked(notification)
                 }
+        }
+
+        // Re-check the lock state after wake and when switching back to this
+        // user, in case a lock/unlock notification was missed.
+        for name in [NSWorkspace.didWakeNotification, NSWorkspace.sessionDidBecomeActiveNotification] {
+            workspaceObservers.append(NSWorkspace.shared.notificationCenter.addObserver(
+                forName: name, object: nil, queue: .main) { [weak self] _ in
+                    Task { @MainActor in
+                        self?.windowManager.resyncLockState()
+                    }
+            })
         }
 
         KeyboardShortcuts.onKeyDown(for: .toggleSneakPeek) { [weak self] in

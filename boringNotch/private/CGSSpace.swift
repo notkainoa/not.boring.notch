@@ -29,6 +29,17 @@ public final class CGSSpace {
         }
     }
 
+    /// PRIVATE API (CGS). Re-adds windows to this space at the window-server
+    /// level even though `windows` already lists them, so `didSet` would be a
+    /// no-op. Needed after SkyLight delegation, which evicts the window from
+    /// every space out of band (see `BoringNotchSkyLightWindow.disableSkyLight`).
+    /// Adapted from upstream PR #1346 by TemujinCalidius.
+    public func reassert(_ windowsToReadd: Set<NSWindow>) {
+        CGSAddWindowsToSpaces(_CGSDefaultConnection(),
+                              windowsToReadd.map { $0.windowNumber } as NSArray,
+                              [self.identifier])
+    }
+
     /// Initialized `CGSSpace`s *MUST* be de-initialized upon app exit!
     public init(level: Int = 0) {
         let flag = 0x1 // this value MUST be 1, otherwise, Finder decides to draw desktop icons

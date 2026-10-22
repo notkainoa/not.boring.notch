@@ -103,7 +103,8 @@ struct ContentView: View {
     private var liveActivities: [LiveActivityItem] {
         var items: [LiveActivityItem] = []
 
-        if let notification = notificationManager.activeNotification {
+        if let notification = notificationManager.activeNotification,
+           coordinator.isVisible(.notifications) {
             items.append(.notification(notification))
         }
 
@@ -113,7 +114,7 @@ struct ContentView: View {
         // The inline song-change peek is drawn inside the music pill, so it
         // has to bring the pill with it even when the persistent live
         // activity is turned off — otherwise the peek never appears.
-        if musicIsShowing || showingInlineMusicPeek {
+        if (musicIsShowing || showingInlineMusicPeek) && coordinator.isVisible(.music) {
             items.append(.music)
         }
 
@@ -522,7 +523,9 @@ struct ContentView: View {
                               .fixedSize()
                       }
                       .zIndex(1)
-            if vm.notchState == .open {
+            // Locked: open() refuses, but a notch held open (e.g. by a share
+            // picker) must still not draw its private content.
+            if vm.notchState == .open && !coordinator.isScreenLocked {
                 VStack {
                     // An open notch with a live notification is showing the
                     // reply UI — the usual tabs can wait until it's dismissed.

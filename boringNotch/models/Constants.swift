@@ -435,6 +435,13 @@ extension Defaults.Keys {
     static let notchHeight = Key<CGFloat>("notchHeight", default: 32)
     // static let openLastTabByDefault = Key<Bool>("openLastTabByDefault", default: false)
     static let showOnLockScreen = Key<Bool>("showOnLockScreen", default: false)
+    // Lock screen: per-feature visibility while locked (see LockScreenPolicy.swift)
+    static let lockScreenMusicVisibility = Key<LockScreenVisibility>("lockScreenMusicVisibility", default: .visible)
+    static let lockScreenBatteryVisibility = Key<LockScreenVisibility>("lockScreenBatteryVisibility", default: .visible)
+    static let lockScreenNotificationsVisibility = Key<LockScreenVisibility>("lockScreenNotificationsVisibility", default: .hidden)
+    static let lockScreenCalendarVisibility = Key<LockScreenVisibility>("lockScreenCalendarVisibility", default: .hidden)
+    static let lockScreenShelfVisibility = Key<LockScreenVisibility>("lockScreenShelfVisibility", default: .hidden)
+    static let lockScreenMirrorVisibility = Key<LockScreenVisibility>("lockScreenMirrorVisibility", default: .hidden)
     static let hideFromScreenRecording = Key<Bool>("hideFromScreenRecording", default: false)
 
     // MARK: Appearance
