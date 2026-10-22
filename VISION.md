@@ -77,6 +77,15 @@ Per-app volume mixer in the notch. Needs a research spike on Core Audio process 
 ### 8. Built-in: now playing
 Already provided by Boring Notch. Keep it, and keep its compact layout.
 
+### 9. Release workflow (not started)
+We deleted upstream's release pipeline in the cleanup commit because it depended on upstream's signing secrets, GitHub App and update feed. When we're ready to ship, we need our own:
+- **Signing and notarization:** Developer ID certificate, notarytool credentials, stored as repo secrets (none exist yet). Decide whose Apple Developer account owns the certificate. The only code-signing identity on the dev Mac is another person's Developer ID cert, so don't use that one.
+- **Build and release automation:** a workflow that builds a release configuration, signs and notarizes, creates the DMG with `Configuration/dmg/`, and publishes a GitHub release. Upstream's deleted `release.yml`, `nightly.yml` and `build_reusable.yml` are good references; find them with `git log --diff-filter=D --name-only` or in upstream's repo.
+- **Auto-update (Sparkle):** auto-update is **disabled** right now. The feed URL and upstream's public key were removed from `Info.plist`, `feedURLString` returns `nil` and the updater is never started. To re-enable: generate our own Sparkle EdDSA key pair, host an appcast (GitHub Pages or release assets), set `SUFeedURL` and `SUPublicEDKey`, and restore `updaterController.startUpdater()` in `boringNotchApp.swift`. Never point it back at upstream's feed, because it would replace our app with Boring Notch.
+- **Stable dev signing:** separate from release. A stable local signing identity keeps macOS permissions between dev rebuilds (see AGENTS.md "Building and testing").
+- **Bundle ID:** the app still uses upstream's `theboringteam.boringnotch` bundle ID and XPC service name. Choose our own before the first release, update `XPCHelperClient.swift`, and plan the migration from the installed Boring Notch.
+- **Nightly or beta channel:** optional later.
+
 ## Order of work
 
 1. Build the snapshot and run it on the notch-less MacBook Air and an external monitor. Record what works.
@@ -87,6 +96,7 @@ Already provided by Boring Notch. Keep it, and keep its compact layout.
 6. Raycast research spike, then the bridge (item 6).
 7. Lock-screen settings tab (item 3, full), once Raycast content exists.
 8. Per-app volume (item 7).
+9. Release workflow (item 9), before the first public build.
 
 ## Not goals
 
