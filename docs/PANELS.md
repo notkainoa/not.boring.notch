@@ -16,7 +16,7 @@ A notification that is open replaces both rows with its reply UI, as before.
 `components/Notch/NotchPanel.swift`:
 
 - `NotchPanelID` is a string-backed identifier. It's an extensible struct rather than an enum so that Raycast-provided panels can register later.
-- `NotchPanel` holds the id, title, SF Symbol, `isAvailable`, `preferredSize(vm)`, activate/deactivate hooks and a content builder.
+- `NotchPanel` holds the id, title, SF Symbol, `isAvailable` (the user setting), `hasHardware(vm)` (hides the button only), `preferredSize(vm)`, activate/deactivate hooks and a content builder.
 - `NotchPanelSize` holds a width and an optional height. A `nil` height means the host measures the content's ideal height. Home uses this so its transport row can never fall outside the hover region (see the comment on `openNotchHeight` in `ContentView`).
 - `NotchPanels.builtIn` is the registry. To add a panel, add an entry there.
 
@@ -26,7 +26,7 @@ Sizes are content sizes, without the shape's side and bottom padding. The host c
 |---|---|
 | Home | 336 wide, measured height |
 | Calendar | 360 × 210 |
-| Mirror | 190 tall, width from the camera's aspect ratio (square when the mirror shape is a circle). The preview keeps that size and is centred if the header makes the panel wider. Hidden on Macs without a camera. |
+| Mirror | 190 tall, width from the camera's aspect ratio (square when the mirror shape is a circle). The preview keeps that size and is centred if the header makes the panel wider. Its button is hidden while no camera is connected, unless it's the panel showing. |
 | Shelf | 480 × 130 |
 
 ## State
@@ -40,4 +40,4 @@ The panel host is a single top-aligned `ZStack` whose frame is the target panel'
 ## Hit-testing and closing
 
 - `.onHover` is attached to the notch's laid-out frame. That frame jumps to the target size at the start of the spring, so the hover region always matches where the notch is going.
-- AppKit doesn't always send a hover exit when a view shrinks out from under a pointer that isn't moving. So after each panel change, `reconcileHoverAfterResize()` compares the pointer with the measured notch frame (`vm.notchFrameSize`, centred at the top of the screen, which is how the window is placed on both notched and non-notch displays) and passes the result to `handleHover`. A pointer left outside after a collapse goes through the same 350 ms hover-exit grace and close path as any other exit, and popovers and sharing still block the close.
+- AppKit doesn't always send a hover exit when a view shrinks out from under a pointer that isn't moving. So whenever `activePanel` changes (a header click, a drag, or a panel being turned off in Settings), `reconcileHoverAfterResize()` compares the pointer with the measured notch frame (`vm.notchFrameSize`, centred at the top of the screen, which is how the window is placed on both notched and non-notch displays) and passes the result to `handleHover`. A pointer left outside after a collapse goes through the same 350 ms hover-exit grace and close path as any other exit, and popovers and sharing still block the close.

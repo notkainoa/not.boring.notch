@@ -80,9 +80,11 @@ final class BoringViewModel: NSObject, ObservableObject {
     private func leaveUnavailablePanel() {
         guard activePanel != .home,
               let panel = NotchPanels.panel(for: activePanel),
-              !panel.isAvailable(self) else { return }
+              !panel.isAvailable() else { return }
         panel.onDeactivate(self)
-        activePanel = .home
+        withAnimation(StandardAnimations.panelMorph) {
+            activePanel = .home
+        }
         if notchState == .open {
             NotchPanels.home.onActivate(self)
         }
@@ -224,7 +226,7 @@ final class BoringViewModel: NSObject, ObservableObject {
     }
 
     var currentPanel: NotchPanel {
-        if let panel = NotchPanels.panel(for: activePanel), panel.isAvailable(self) {
+        if let panel = NotchPanels.panel(for: activePanel), panel.isAvailable() {
             return panel
         }
         return NotchPanels.home
@@ -259,7 +261,7 @@ final class BoringViewModel: NSObject, ObservableObject {
 
     private func setActivePanel(_ id: NotchPanelID) {
         // A panel that's been turned off (or a stale id) lands on home.
-        let next = NotchPanels.panel(for: id).flatMap { $0.isAvailable(self) ? $0 : nil } ?? NotchPanels.home
+        let next = NotchPanels.panel(for: id).flatMap { $0.isAvailable() ? $0 : nil } ?? NotchPanels.home
         let previous = currentPanel
         guard previous.id != next.id || notchState == .closed else { return }
         if previous.id != next.id {

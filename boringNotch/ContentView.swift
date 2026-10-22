@@ -361,6 +361,11 @@ struct ContentView: View {
                     .onChange(of: vm.isPopoverActive) { _, _ in
                         scheduleCloseIfNotHovering(overNotch: vm)
                     }
+                    // Every panel change, whether from the header, a drag
+                    // or a panel being turned off in Settings.
+                    .onChange(of: vm.activePanel) { _, _ in
+                        reconcileHoverAfterResize()
+                    }
                     .sensoryFeedback(.alignment, trigger: haptics)
                     .contextMenu {
                         Button("Settings") {
@@ -412,7 +417,6 @@ struct ContentView: View {
                         withAnimation(StandardAnimations.panelMorph) {
                             vm.showPanel(.shelf)
                         }
-                        reconcileHoverAfterResize()
                     }
                 }
                 return
@@ -846,7 +850,6 @@ extension ContentView {
         withAnimation(StandardAnimations.panelMorph) {
             vm.showPanel(target)
         }
-        reconcileHoverAfterResize()
     }
 
     /// A panel change resizes the hover region under a pointer that hasn't

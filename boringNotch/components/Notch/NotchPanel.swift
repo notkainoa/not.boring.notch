@@ -44,7 +44,13 @@ struct NotchPanel: Identifiable {
     let id: NotchPanelID
     let title: LocalizedStringResource
     let systemImage: String
-    var isAvailable: (BoringViewModel) -> Bool = { _ in true }
+    /// Whether the user has the panel turned on. A panel that's off can't
+    /// be shown; switching to it lands on home.
+    var isAvailable: () -> Bool = { true }
+    /// Whether the hardware the panel needs is there. Only hides the
+    /// header button: an active panel stays put when its hardware goes
+    /// away, so it can show that and pick up again when it comes back.
+    var hasHardware: (BoringViewModel) -> Bool = { _ in true }
     var preferredSize: (BoringViewModel) -> NotchPanelSize
     var onActivate: (BoringViewModel) -> Void = { _ in }
     var onDeactivate: (BoringViewModel) -> Void = { _ in }
@@ -74,7 +80,7 @@ enum NotchPanels {
         id: .calendar,
         title: "Calendar",
         systemImage: "calendar",
-        isAvailable: { _ in Defaults[.showCalendar] },
+        isAvailable: { Defaults[.showCalendar] },
         // Room for the date strip plus four or five event rows.
         preferredSize: { _ in NotchPanelSize(width: 360, height: 210) },
         content: { context in
@@ -92,8 +98,9 @@ enum NotchPanels {
         id: .mirror,
         title: "Mirror",
         systemImage: "web.camera",
+        isAvailable: { Defaults[.showMirror] },
         // No button on a Mac without a camera: the panel would be empty.
-        isAvailable: { vm in Defaults[.showMirror] && vm.camera.cameraAvailable },
+        hasHardware: { vm in vm.camera.cameraAvailable },
         preferredSize: { vm in
             let size = mirrorPreviewSize(vm)
             return NotchPanelSize(width: size.width, height: size.height)
@@ -128,7 +135,7 @@ enum NotchPanels {
         id: .shelf,
         title: "Shelf",
         systemImage: "tray.fill",
-        isAvailable: { _ in Defaults[.boringShelf] },
+        isAvailable: { Defaults[.boringShelf] },
         preferredSize: { _ in NotchPanelSize(width: 480, height: 130) },
         content: { context in
             AnyView(
@@ -148,9 +155,13 @@ enum NotchPanels {
         builtIn.first { $0.id == id }
     }
 
-    /// Buttons shown in the header.
+    /// Buttons shown in the header. The active panel always keeps its
+    /// button, since clicking it again is the way back to home.
     static func featurePanels(for vm: BoringViewModel) -> [NotchPanel] {
-        builtIn.filter { $0.id != .home && $0.isAvailable(vm) }
+        builtIn.filter { panel in
+            panel.id != .home && panel.isAvailable()
+                && (panel.hasHardware(vm) || panel.id == vm.activePanel)
+        }
     }
 }
 
