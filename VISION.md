@@ -2,7 +2,7 @@
 
 A compact, always-on notch that hosts a small set of built-in features and brings Raycast and its extensions into the notch. Built on Boring Notch. Stays easy to rebase on upstream.
 
-Reference apps: **Vorsaint** (animation and "expand for big things" feel), **MewNotch** (lock screen, multi-display, HUDs), **DynamicNotch** (temporary alerts such as Bluetooth and Wi-Fi). MewNotch and DynamicNotch are GPL-3.0 references, so check licenses before copying any code.
+Reference apps: **Vorsaint** (animation and "expand for big things" feel), **MewNotch** (multi-display, HUDs), **DynamicNotch** (temporary alerts such as Bluetooth and Wi-Fi). MewNotch and DynamicNotch are GPL-3.0 references, so check licenses before copying any code.
 
 ## Principles
 
@@ -32,17 +32,6 @@ A compact bar with buttons (or activity chips) for each feature. Clicking one ex
 - Each panel declares its own preferred size. Size changes are animated morphs of the notch shape, with no cross-fade between two separate windows. Tune the spring and timing against Vorsaint.
 - Needs per-panel geometry in the notch view model, and hover/hit-testing that follows the changing frame (note the existing comment in `ContentView` about compact hit-testing).
 - Upstream's extension platform has "compact workspace" prep. We're not using that platform (see sync doc), but we can glance at it for geometry ideas.
-
-### 3. Lock screen customization
-Today `showOnLockScreen` (default off) shows the entire notch on the lock screen through SkyLight windows, so everything is available while locked.
-- Add a separate list of features available while locked. Each feature toggles independently, for example now-playing and battery on, calendar details, shelf and mirror off.
-- Respect privacy: calendar event titles and shelf contents should be hideable or redacted when locked.
-- Settings UI: a "Lock screen" section with per-feature switches.
-- Compare MewNotch's lock-screen settings before designing. We're **not** adopting upstream's lock-screen widget containers (#1498).
-- Mine upstream PR #1346 (unlock animation with privacy lockdown). It shows a padlock that morphs open on unlock and hides private content and interaction while locked. Take its SkyLight window-swap fix and the idea of a locked state. Its list of what's private is hardcoded, and ours is user-configurable.
-- Known bug to test for in the existing `showOnLockScreen`: after unlock the SkyLight window's transparent margins can swallow desktop clicks near the notch. #1346 fixes it by replacing the window with a fresh one.
-- **Deferred.** The full lock-screen settings tab comes after the Raycast integration, because most of what the user would configure (Raycast panels and activities) doesn't exist yet. Until then lock-screen behavior stays as it is today, apart from the click-swallow check.
-- Lock screen support is undocumented upstream. Add notes to the README as we go.
 
 ### 4. Bluetooth live activity
 Show a temporary alert when a Bluetooth device connects or disconnects, with its battery level where available.
@@ -84,13 +73,12 @@ We deleted upstream's release pipeline in the cleanup commit because it depended
 2. Quit in the context menu (item 0).
 3. Compact-only (item 1) together with the expandable panel mechanism (item 2) and the calendar and mirror panels.
 4. Adopt the non-notch clock (#1718) and the Bluetooth banner (#1668), after comparing with DynamicNotch and MewNotch (items 4 and 5).
-5. Check the lock-screen click-swallow bug and add the locked-state skeleton (item 3, first pass only).
-6. Raycast research spike, then the bridge (item 6).
-7. Lock-screen settings tab (item 3, full), once Raycast content exists.
-8. Per-app volume (item 7).
-9. Release workflow (item 9), before the first public build.
+5. Raycast research spike, then the bridge (item 6).
+6. Per-app volume (item 7).
+7. Release workflow (item 9), before the first public build.
 
 ## Not goals
 
 - A closed-source or paid release. The project is GPL-3.0.
+- Lock-screen support. The notch does not appear or do anything on the lock screen.
 - Feature parity with every Boring Notch option. Removing settings we don't need is fine.

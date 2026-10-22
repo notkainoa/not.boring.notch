@@ -290,14 +290,6 @@ final class BoringViewCoordinator: ObservableObject {
     }
 
      func applyOSDSources() {
-        if NotchSpaceManager.shared.notchSpace.windows.isEmpty {
-            BetterDisplayManager.shared.stopObserving()
-            LunarManager.shared.stopListening()
-            LunarManager.shared.configureLunarOSD(hide: false)
-            MediaKeyInterceptor.shared.stop()
-            return
-        }
-
         guard Defaults[.osdReplacement] else {
             BetterDisplayManager.shared.stopObserving()
             LunarManager.shared.stopListening()

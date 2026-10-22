@@ -1,39 +1,15 @@
 //
-//  BoringNotchSkyLightWindow.swift
+//  BoringNotchWindow.swift
 //  boringNotch
 //
 //  Created by Alexander on 2025-10-20.
 //
 
 import Cocoa
-import SkyLightWindow
 import Defaults
 import Combine
 
-extension SkyLightOperator {
-    func undelegateWindow(_ window: NSWindow) {
-        typealias F_SLSRemoveWindowsFromSpaces = @convention(c) (Int32, CFArray, CFArray) -> Int32
-
-        let handler = dlopen("/System/Library/PrivateFrameworks/SkyLight.framework/Versions/A/SkyLight", RTLD_NOW)
-        guard let SLSRemoveWindowsFromSpaces = unsafeBitCast(
-            dlsym(handler, "SLSRemoveWindowsFromSpaces"),
-            to: F_SLSRemoveWindowsFromSpaces?.self
-        ) else {
-            return
-        }
-
-        // Remove the window from the SkyLight space
-        _ = SLSRemoveWindowsFromSpaces(
-            connection,
-            [window.windowNumber] as CFArray,
-            [space] as CFArray
-        )
-    }
-}
-
-class BoringNotchSkyLightWindow: NSPanel {
-    private var isSkyLightEnabled: Bool = false
-
+class BoringNotchWindow: NSPanel {
     override init(
         contentRect: NSRect,
         styleMask: NSWindow.StyleMask,
@@ -123,20 +99,6 @@ class BoringNotchSkyLightWindow: NSPanel {
         }
     }
 
-    func enableSkyLight() {
-        if !isSkyLightEnabled {
-            SkyLightOperator.shared.delegateWindow(self)
-            isSkyLightEnabled = true
-        }
-    }
-
-    func disableSkyLight() {
-        if isSkyLightEnabled {
-            SkyLightOperator.shared.undelegateWindow(self)
-            isSkyLightEnabled = false
-        }
-    }
-
     private var observers: Set<AnyCancellable> = []
 
     private func cleanupObservers() {
@@ -151,11 +113,6 @@ class BoringNotchSkyLightWindow: NSPanel {
     /// normal interaction (hover-to-open, music controls, OSD). A text field
     /// needs this flipped on for the moment it's actually being typed into,
     /// and back off the instant it isn't — never left permanently true.
-    ///
-    /// This is the window class actually instantiated for the notch
-    /// (createBoringNotchWindow uses BoringNotchSkyLightWindow, not the
-    /// separate, unused BoringNotchWindow class) — an earlier fix targeted
-    /// that unused class and silently did nothing.
     var wantsKeyForTextInput = false {
         didSet {
             guard wantsKeyForTextInput != oldValue else { return }
