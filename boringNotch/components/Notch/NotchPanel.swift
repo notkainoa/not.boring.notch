@@ -165,6 +165,48 @@ enum NotchPanels {
     }
 }
 
+// MARK: - Host
+
+/// The open notch's content area. Its frame is the active panel's size,
+/// so switching panels inside a panelMorph animation springs the one
+/// notch shape from one size to the next. Each panel's content keeps its
+/// own size and only fades, so nothing reflows mid-morph, and the
+/// outgoing content is clipped by the shape as it shrinks.
+struct NotchPanelHost: View {
+    let panel: NotchPanel
+    let size: NotchPanelSize
+    let context: NotchPanelContext
+
+    @State private var measuredHeights: [NotchPanelID: CGFloat] = [:]
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            panel.content(context)
+                .frame(width: size.width, height: size.height, alignment: .top)
+                .fixedSize(horizontal: false, vertical: size.height == nil)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                    if size.height == nil {
+                        measuredHeights[panel.id] = height
+                    }
+                }
+                .id(panel.id)
+                .transition(
+                    .asymmetric(
+                        insertion: .opacity
+                            .combined(with: .scale(scale: 0.97, anchor: .top))
+                            .animation(.easeOut(duration: 0.22).delay(0.06)),
+                        removal: .opacity.animation(.easeIn(duration: 0.1))
+                    )
+                )
+        }
+        .frame(
+            width: size.width,
+            height: size.height ?? measuredHeights[panel.id],
+            alignment: .top
+        )
+    }
+}
+
 // MARK: - Geometry
 
 @MainActor

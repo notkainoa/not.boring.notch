@@ -34,9 +34,6 @@ struct ContentView: View {
     @State private var isHoveringMusicArea = false
 
     @State private var haptics: Bool = false
-    /// Ideal heights of panels that size to their content, measured on
-    /// first layout so the panel host can animate to a concrete height.
-    @State private var measuredPanelHeights: [NotchPanelID: CGFloat] = [:]
     @State private var hoverReconcileTask: Task<Void, Never>?
 
     @Namespace var albumArtNamespace
@@ -123,12 +120,9 @@ struct ContentView: View {
     /// A notification is a glance, not a workspace, so it gets a fixed
     /// short height. nil means "size to content".
     ///
-    /// Panels must use nil: this frame bounds hit-testing as well as
-    /// layout, so any value shorter than the content leaves part of the
-    /// panel outside the hover region. Moving toward the home panel's
-    /// transport row used to register as a hover-exit and close the notch.
-    /// Each panel's height comes from its NotchPanelSize instead (see the
-    /// panel host), so this frame always matches the panel that's showing.
+    /// Panels must use nil: this frame also bounds hit-testing, and a value
+    /// shorter than the content once made reaching the home panel's
+    /// transport row a hover-exit. Panels size via NotchPanelSize instead.
     private var openNotchHeight: CGFloat? {
         notificationManager.activeNotification != nil ? 132 : nil
     }
@@ -560,7 +554,16 @@ struct ContentView: View {
                         NotificationExpandedView(notification: notification)
                             .id(notification.id)
                     } else {
-                        panelHost
+                        NotchPanelHost(
+                            panel: vm.currentPanel,
+                            size: currentPanelSize,
+                            context: NotchPanelContext(
+                                vm: vm,
+                                albumArtNamespace: albumArtNamespace,
+                                horizontalMediaGestureFeedback: horizontalMediaGestureFeedback,
+                                isHoveringMusicArea: $isHoveringMusicArea
+                            )
+                        )
                     }
                 }
                 .transition(
@@ -574,48 +577,6 @@ struct ContentView: View {
             }
         }
         .onDrop(of: [.fileURL, .url, .utf8PlainText, .plainText, .data], delegate: GeneralDropTargetDelegate(isTargeted: $dropInteraction.generalDropTargeting))
-    }
-
-    /// The open notch's content area. Its frame is the active panel's size,
-    /// so switching panels inside a panelMorph animation springs the one
-    /// notch shape from one size to the next. Each panel's content keeps its
-    /// own size and only fades, so nothing reflows mid-morph, and the
-    /// outgoing content is clipped by the shape as it shrinks.
-    @ViewBuilder
-    private var panelHost: some View {
-        let panel = vm.currentPanel
-        let size = currentPanelSize
-        let context = NotchPanelContext(
-            vm: vm,
-            albumArtNamespace: albumArtNamespace,
-            horizontalMediaGestureFeedback: horizontalMediaGestureFeedback,
-            isHoveringMusicArea: $isHoveringMusicArea
-        )
-
-        ZStack(alignment: .top) {
-            panel.content(context)
-                .frame(width: size.width, height: size.height, alignment: .top)
-                .fixedSize(horizontal: false, vertical: size.height == nil)
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
-                    if size.height == nil {
-                        measuredPanelHeights[panel.id] = height
-                    }
-                }
-                .id(panel.id)
-                .transition(
-                    .asymmetric(
-                        insertion: .opacity
-                            .combined(with: .scale(scale: 0.97, anchor: .top))
-                            .animation(.easeOut(duration: 0.22).delay(0.06)),
-                        removal: .opacity.animation(.easeIn(duration: 0.1))
-                    )
-                )
-        }
-        .frame(
-            width: size.width,
-            height: size.height ?? measuredPanelHeights[panel.id],
-            alignment: .top
-        )
     }
 
     private func nowPlayingFallbackNotice(_ notice: NowPlayingFallbackNotice) -> some View {
@@ -852,12 +813,10 @@ extension ContentView {
         }
     }
 
-    /// A panel change resizes the hover region under a pointer that hasn't
-    /// moved, and AppKit doesn't reliably send a hover exit for that. Once
-    /// the new layout has been measured, check where the pointer really is
-    /// and run it through handleHover: outside goes through the usual exit
-    /// grace and close (scheduleCloseIfNotHovering's rules), inside cancels
-    /// any exit that fired while the shape was mid-resize.
+    /// A panel change resizes the hover region under a still pointer, and
+    /// AppKit doesn't reliably send a hover exit for that. Once layout lands,
+    /// run the real pointer position through handleHover (usual exit grace
+    /// and close rules outside; inside cancels a mid-resize exit).
     private func reconcileHoverAfterResize() {
         hoverReconcileTask?.cancel()
         hoverReconcileTask = Task { @MainActor in
